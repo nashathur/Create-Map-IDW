@@ -32,6 +32,8 @@ def execute(peta, tipe, skala, month):
     cfg.tipe = tipe
     cfg.skala = skala
     cfg.month = month
+
+    clear_data_cache()
     
     print(f"\n{'='*60}")
     print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
@@ -98,5 +100,6 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
 
 
