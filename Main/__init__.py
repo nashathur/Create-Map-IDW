@@ -6,7 +6,7 @@ Create-Map-IDW - Weather Map Generation Package for BMKG
 from .config import cfg, CACHE_DIR
 from .static import download_static_files, clear_basemap_cache
 from .utils import load_prakiraan, load_analisis, clear_data_cache
-from .map_creation import create_map
+from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
 from .processors import (
     get_pch,
@@ -97,3 +97,4 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
