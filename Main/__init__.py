@@ -1,6 +1,6 @@
 # __init__.py
 """
-Staklim - Weather Map Generation Package for BMKG
+Weather Map Generation Package for BMKG
 """
 
 from .config import cfg, CACHE_DIR
@@ -44,3 +44,4 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
