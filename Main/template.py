@@ -206,8 +206,8 @@ def overlay_image(plot_data):
     display(new_image)
 
     background_template.close()
-    if result_image is not None:
-        result_image.close()
+    #if result_image is not None:
+        #result_image.close()
 
     map_data = {
         'peta': peta,
@@ -233,4 +233,5 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     print("")
     return map_data
+
 
