@@ -1,6 +1,6 @@
 # __init__.py
 """
-Weather Map Generation Package for BMKG
+Create-Map-IDW - Weather Map Generation Package for BMKG
 """
 
 from .config import cfg, CACHE_DIR
@@ -20,10 +20,62 @@ from .processors import (
     bias_map,
 )
 
-# Auto-download static files on import
 download_static_files()
 
 __version__ = "1.0.0"
+
+
+def execute(peta, tipe, skala, month):
+    """Execute map generation based on configuration."""
+    cfg.peta = peta
+    cfg.tipe = tipe
+    cfg.skala = skala
+    cfg.month = month
+    
+    print(f"\n{'='*60}")
+    print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
+    print(f"{'='*60}")
+    
+    if peta == 'Prakiraan':
+        if tipe == 'Curah Hujan':
+            plot_data = get_pch()
+        elif tipe == 'Sifat Hujan':
+            plot_data = get_psh()
+        else:
+            raise ValueError(f"Unknown tipe: {tipe}")
+            
+    elif peta == 'Analisis':
+        if tipe == 'Curah Hujan':
+            plot_data = get_ach()
+        elif tipe == 'Sifat Hujan':
+            plot_data = get_ash()
+        else:
+            raise ValueError(f"Unknown tipe: {tipe}")
+            
+    elif peta == 'Probabilistik':
+        plot_data = get_pch_prob()
+        
+    elif peta == 'Verifikasi':
+        if skala == 'Bulanan':
+            plot_data = get_verif_qual()
+        else:
+            plot_data = get_verif_quan()
+            
+    elif peta == 'Normal':
+        plot_data = get_normal()
+        
+    elif peta == 'Bias':
+        plot_data = bias_map()
+        
+    else:
+        raise ValueError(f"Unknown peta type: {peta}")
+    
+    map_data = overlay_image(plot_data)
+    
+    print(f"\nCompleted: {map_data['file_name']}")
+    return map_data
+
+
 __all__ = [
     'cfg',
     'CACHE_DIR',
@@ -34,6 +86,7 @@ __all__ = [
     'load_analisis',
     'create_map',
     'overlay_image',
+    'execute',
     'get_pch',
     'get_psh',
     'get_ach',
@@ -44,4 +97,3 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
-
