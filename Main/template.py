@@ -201,15 +201,13 @@ def overlay_image(plot_data):
     print(f"\rMap: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})", end="", flush=True)
     file_name = f"peta_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
-    buffer = io.BytesIO()
-    new_image.save(buffer, format='PNG')
-    buffer.seek(0)
-    img_final = load_image_to_memory(buffer)
+    # ---- Display in notebook ----
+    from IPython.display import display
+    display(new_image)
 
     background_template.close()
     if result_image is not None:
         result_image.close()
-    new_image.close()
 
     map_data = {
         'peta': peta,
@@ -224,7 +222,7 @@ def overlay_image(plot_data):
         'dasarian_ver': dasarian_ver,
         'province_data': province_counts,
         'kabupaten_data': kabupaten_counts,
-        'image': img_final,
+        'image': new_image,
         'file_name': file_name,
         'nama_wilayah': nama_wilayah,
         'plot_file': plot_file
@@ -235,3 +233,4 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     print("")
     return map_data
+
