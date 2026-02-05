@@ -35,7 +35,7 @@ class cfg:
     month = None
 
 
-GITHUB_BASE = "https://github.com/nashathur/Staklim_Papbar/releases/download/v1.0"
+GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 CACHE_DIR = "/content/static_data"
 
 STATIC_FILES = {
@@ -48,4 +48,5 @@ STATIC_FILES = {
     'template_verifikasi.png': f"{GITHUB_BASE}/template_verifikasi.png",
     'template_probabilistik.png': f"{GITHUB_BASE}/template_probabilistik.png",
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
+
 }
