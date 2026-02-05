@@ -12,7 +12,6 @@ import pandas as pd
 import geopandas as gpd
 from PIL import Image
 from numba import njit, prange
-from sklearn.metrics import cohen_kappa_score
 
 from .config import cfg, CACHE_DIR
 
@@ -265,13 +264,22 @@ def dasarian_romawi(number):
 # METRICS
 # =============================================================================
 
+def cohen_kappa(y1, y2):
+    y1 = np.asarray(y1)
+    y2 = np.asarray(y2)
+    n = len(y1)
+    labels = np.unique(np.concatenate([y1, y2]))
+    po = np.sum(y1 == y2) / n
+    pe = sum((np.sum(y1 == c) * np.sum(y2 == c)) for c in labels) / (n * n)
+    return (po - pe) / (1 - pe) if pe != 1 else 0.0
+
 def calculate_metrics(forecast_series, actual_series, contingency_table):
     total = contingency_table.loc['All', 'All']
 
     correct = sum(contingency_table.loc[i, i] for i in contingency_table.index if i != 'All' and i in contingency_table.columns)
     accuracy = correct / total
 
-    hss = cohen_kappa_score(actual_series, forecast_series)
+    hss = cohen_kappa(actual_series, forecast_series)
 
     contingency_table_probabilistic = contingency_table.apply(lambda x: x / total, axis=0)
     n_categories = len(contingency_table.index) - 1
@@ -339,3 +347,4 @@ def arrange_table():
     print("\rDataframe done", end="", flush=True)
 
     return df_prakiraan, df_analisis, merged_df
+
