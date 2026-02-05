@@ -1,4 +1,4 @@
-# Staklim
+#Map Creation
 
 Weather Map Generation Package for BMKG Papua Barat Daya.
 
