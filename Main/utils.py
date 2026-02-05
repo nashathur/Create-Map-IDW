@@ -319,6 +319,14 @@ def count_points(data, value, levels):
 # ARRANGE TABLE (for verification)
 # =============================================================================
 
+def categorize_ch_vec(s):
+    s = pd.to_numeric(s, errors='coerce').fillna(0).clip(lower=0)
+    return np.digitize(s, bins=[0, 101, 301, 501], right=False)
+
+def categorize_index_vec(s):
+    s = pd.to_numeric(s, errors='coerce').fillna(0).clip(lower=0)
+    return np.digitize(s, bins=[0, 21, 51, 101, 151, 201, 301, 401, 501], right=False)
+    
 def arrange_table():
     print("\rLoading data", end="", flush=True)
     df_prakiraan = load_prakiraan(copy=True)
@@ -334,10 +342,10 @@ def arrange_table():
         raise ValueError("Neither CH nor VAL found in the DataFrame")
     
     print("\rProcessing dataframe", end="", flush=True)
-    df_prakiraan['CH_category'] = df_prakiraan[value].apply(categorize_ch)
-    df_analisis['CH_category'] = df_analisis['CH'].apply(categorize_ch)
-    df_prakiraan['index'] = df_prakiraan[value].apply(categorize_index)
-    df_analisis['index'] = df_analisis['CH'].apply(categorize_index)
+    df_prakiraan['CH_category'] = categorize_ch_vec(df_prakiraan[value])
+    df_analisis['CH_category'] = categorize_ch_vec(df_analisis['CH'])
+    df_prakiraan['index'] = categorize_index_vec(df_prakiraan[value])
+    df_analisis['index'] = categorize_index_vec(df_analisis['CH'])
 
     merged_df = pd.merge(df_prakiraan, df_analisis, on=['LON', 'LAT'], suffixes=('_forecast', '_analysis'))
 
@@ -347,4 +355,5 @@ def arrange_table():
     print("\rDataframe done", end="", flush=True)
 
     return df_prakiraan, df_analisis, merged_df
+
 
