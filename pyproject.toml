@@ -39,4 +39,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["staklim*"]
+include = ["Main*"]
