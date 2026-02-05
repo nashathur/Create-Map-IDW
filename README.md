@@ -5,13 +5,13 @@ Weather Map Generation Package for BMKG Papua Barat Daya.
 ## Installation
 
 ```bash
-pip install git+https://github.com/nashathur/Staklim_Papbar.git
+pip install git+https://github.com/nashathur/Create-Map-IDW.git
 ```
 
 ## Usage in Google Colab
 
 ```python
-!pip install -q git+https://github.com/nashathur/Staklim_Papbar.git
+!pip install git+https://github.com/nashathur/Create-Map-IDW.git
 
 from google.colab import files
 from staklim import cfg, execute
