@@ -11,7 +11,7 @@ import numpy as np
 import geopandas as gpd
 import rasterio
 import rasterio.plot
-from fuzzywuzzy import process
+from thefuzz import process
 
 from .config import CACHE_DIR, STATIC_FILES
 
@@ -199,3 +199,4 @@ def get_hgt_data():
             }
         print("\rhgt cached to memory", end="", flush=True)
     return _hgt_cache
+
