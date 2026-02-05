@@ -135,6 +135,7 @@ def create_map(df, value, jenis, color, levels, info):
 
     # Reuse template, just swap data
     data_array = spatial['template'].copy(data=idw)
+    data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
     clipped_data = data_array.rio.clip(shp_main.geometry)
     print("\rIDW Done", end="", flush=True)
 
@@ -338,3 +339,4 @@ def create_map(df, value, jenis, color, levels, info):
     gc.collect()
     del clipped_data, idw
     return plot_data
+
