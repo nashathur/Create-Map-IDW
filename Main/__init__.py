@@ -8,6 +8,7 @@ from .static import download_static_files, clear_basemap_cache
 from .utils import load_prakiraan, load_analisis, clear_data_cache
 from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
+from .upload import upload_files
 from .processors import (
     get_pch,
     get_psh,
@@ -97,4 +98,5 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
 
