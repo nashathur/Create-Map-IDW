@@ -9,8 +9,7 @@ from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from .config import cfg, CACHE_DIR
 from .static import font_path
@@ -59,7 +58,7 @@ def overlay_image(plot_data):
     nama_wilayah = plot_data['nama_wilayah']
     value = plot_data['value']
     plot_file = plot_data['file_name']
-    
+
     if peta == 'Verifikasi':
         accuracy = plot_data['accuracy']
         hss = plot_data['hss']
@@ -72,7 +71,7 @@ def overlay_image(plot_data):
     print("\rLoading template image ...", end="", flush=True)
     background_template = image_template()
     print("\rTemplate image done", end="", flush=True)
-    
+
     if peta == 'Probabilistik':
         print("\rLoading Probabilistik image ...", end="", flush=True)
         result_b50 = plot_data['result_b50']
@@ -95,7 +94,6 @@ def overlay_image(plot_data):
         ]
 
         results = [result_b50, result_b100, result_b150, result_a50, result_a100, result_a150]
-
         new_image = background_template.copy()
 
         print("\rOverlaying Probabilistik image ...", end="", flush=True)
@@ -109,7 +107,7 @@ def overlay_image(plot_data):
                 plt.close(result['fig'])
             if 'image' in result and result['image'] is not None:
                 result['image'].close()
-        img_array = np.array(new_image)
+
         print("\rOverlaying Probabilistik image done", end="", flush=True)
         title = f"PETA PRAKIRAAN {peta} {tipe}"
         result_image = None
@@ -128,22 +126,12 @@ def overlay_image(plot_data):
         print("\rPlot image loaded", end="", flush=True)
         new_image = background_template.copy()
         new_image.paste(result_image, location, result_image)
-        img_array = np.array(new_image)
         print("\rImage composite done", end="", flush=True)
         title = f"PETA {peta} {tipe}"
 
     del plot_data
-    print("\rCreating plot ...", end="", flush=True)
-    fig, ax = plt.subplots(figsize=(25, 25))
 
-    ax.imshow(img_array)
-
-    font_style = 'bold'
-    fontprop = fm.FontProperties(fname=font_path(font_style))
-    text_x = 2940
-    text_y = 172
-    spacing = 60
-
+    # ---- Build text strings ----
     if peta in ['Prakiraan', 'Verifikasi', 'Probabilistik']:
         if skala == "Bulanan":
             das_title = ""
@@ -167,14 +155,9 @@ def overlay_image(plot_data):
     if skala == 'Bulanan':
         subtitle = f"BULAN {number_to_bulan(month)} {year}"
     else:
-        subtitle = f"DASARIAN {dasarian_romawi(dasarian)} {number_to_bulan(month)} {year} "
-    subtitle_wilayah = f"{nama_wilayah.upper()}"
+        subtitle = f"DASARIAN {dasarian_romawi(dasarian)} {number_to_bulan(month)} {year}"
 
-    length = len(subtitle_wilayah)
-    if length > 41:
-        fontsize_wilayah = 18
-    else:
-        fontsize_wilayah = 20
+    subtitle_wilayah = nama_wilayah.upper()
 
     if peta == 'Probabilistik':
         title = f"PETA PRAKIRAAN {peta} {tipe}"
@@ -187,33 +170,47 @@ def overlay_image(plot_data):
         text_y = 172
         spacing = 60
 
-    ax.text(text_x, text_y, title.upper(), fontsize=26, color='black', horizontalalignment='center', verticalalignment='center', fontproperties=fontprop)
-    ax.text(text_x, text_y + spacing, subtitle.upper(), fontsize=23, color='black', horizontalalignment='center', verticalalignment='center', fontproperties=fontprop)
-    ax.text(text_x, text_y + (spacing * 2), subtitle_wilayah.upper(), fontsize=fontsize_wilayah, color='black', horizontalalignment='center', verticalalignment='center', fontproperties=fontprop)
-    ax.text(text_x, text_y + (spacing * 2.8), subtitle_versi, fontsize=16, color='blue', horizontalalignment='center', verticalalignment='center', fontproperties=fm.FontProperties(fname=font_path('regular')))
+    # ---- PIL text rendering ----
+    # Font sizes here are in pixels, matching the visual output of the old
+    # matplotlib code at figsize=(25,25) dpi=200 (5000x5000 canvas).
+    # matplotlib fontsize=26 at dpi=200 ≈ 52px, fontsize=23 ≈ 46px, etc.
+    font_title = ImageFont.truetype(font_path('bold'), size=52)
+    font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
+    font_wilayah_large = ImageFont.truetype(font_path('bold'), size=40)
+    font_wilayah_small = ImageFont.truetype(font_path('bold'), size=36)
+    font_versi = ImageFont.truetype(font_path('regular'), size=32)
 
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.axis('off')
-    ax.set_position([0, 0, 1, 1])
+    font_wilayah = font_wilayah_small if len(subtitle_wilayah) > 41 else font_wilayah_large
 
+    draw = ImageDraw.Draw(new_image)
+
+    # centered text helper — PIL doesn't have anchor='mm' in older versions
+    def draw_centered(y, text, font, fill='black'):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text((text_x - tw // 2, y - (bbox[3] - bbox[1]) // 2), text, fill=fill, font=font)
+
+    draw_centered(text_y, title.upper(), font_title)
+    draw_centered(text_y + spacing, subtitle.upper(), font_subtitle)
+    draw_centered(text_y + spacing * 2, subtitle_wilayah, font_wilayah)
+    draw_centered(text_y + int(spacing * 2.8), subtitle_versi, font_versi, fill='blue')
+
+    # ---- Save directly from PIL ----
     print("\rSaving Plot", end="", flush=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     print(f"\rMap: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})", end="", flush=True)
     file_name = f"peta_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
     buffer = io.BytesIO()
-    plt.savefig(buffer, format='PNG', dpi=200, transparent=True, bbox_inches='tight')
+    new_image.save(buffer, format='PNG')
     buffer.seek(0)
     img_final = load_image_to_memory(buffer)
-    plt.show()
-    plt.close(fig)
 
     background_template.close()
     if result_image is not None:
         result_image.close()
-    
+    new_image.close()
+
     map_data = {
         'peta': peta,
         'tipe': tipe,
