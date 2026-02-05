@@ -22,7 +22,59 @@ from .config import cfg
 from .static import font_path, get_basemap, get_hgt_data
 from .utils import load_image_to_memory, idw_numba, count_points
 
+_spatial_cache = {}
 
+def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
+    """Cache grid, tree, query results, and clip geometry for a given spatial extent + point set."""
+    bounds = tuple(shp_main.total_bounds)
+    pts_hash = (lon.tobytes(), lat.tobytes())  # identity of point locations
+    cache_key = (bounds, pts_hash)
+
+    if cache_key in _spatial_cache:
+        return _spatial_cache[cache_key]
+
+    minx, miny, maxx, maxy = bounds
+    output_cell_size = 0.0021648361216
+    ncols = int(np.ceil((maxx - minx) / output_cell_size))
+    nrows = int(np.ceil((maxy - miny) / output_cell_size))
+    x_grid = np.linspace(minx, minx + ncols * output_cell_size, ncols + 1)
+    y_grid = np.linspace(miny, miny + nrows * output_cell_size, nrows + 1)
+    grid_lon, grid_lat = np.meshgrid(x_grid, y_grid)
+
+    xy = np.column_stack((lon.astype(np.float32), lat.astype(np.float32)))
+    tree = cKDTree(xy)
+    query_points = np.column_stack((grid_lon.ravel().astype(np.float32), grid_lat.ravel().astype(np.float32)))
+    dists, idx = tree.query(query_points, k=n_neighbors)
+    dists = dists.astype(np.float32)
+
+    # Pre-build the xarray template and clip mask once
+    template = xr.DataArray(
+        np.empty(grid_lon.shape, dtype=np.float32),
+        coords={'lat': y_grid, 'lon': x_grid},
+        dims=['lat', 'lon']
+    )
+    template = template.rio.set_spatial_dims("lon", "lat", inplace=True)
+    template = template.rio.write_crs(shp_crs)
+
+    result = {
+        'x_grid': x_grid,
+        'y_grid': y_grid,
+        'grid_lon': grid_lon,
+        'grid_lat': grid_lat,
+        'dists': dists,
+        'idx': idx,
+        'query_shape': grid_lon.shape,
+        'template': template,
+        'bounds': bounds,
+    }
+
+    _spatial_cache[cache_key] = result
+    return result
+
+def clear_spatial_cache():
+    global _spatial_cache
+    _spatial_cache = {}
+    
 def create_map(df, value, jenis, color, levels, info):
     print(f"\rProcessing {value}", end="", flush=True)
     year, month, dasarian, year_ver, month_ver, dasarian_ver, wilayah = info
@@ -51,7 +103,6 @@ def create_map(df, value, jenis, color, levels, info):
         das_title = ""
         das_ver_title = ""
 
-    is_province_level = 'PROVINSI' in shp_main.columns
     print("\rBasemap loaded", end="", flush=True)
 
     if not isinstance(df, gpd.GeoDataFrame):
@@ -66,46 +117,28 @@ def create_map(df, value, jenis, color, levels, info):
     values = clipped_gdf[value].to_numpy()
     print(f"\rClipping data done", end="", flush=True)
 
-    minx, miny, maxx, maxy = shp_main.total_bounds
-    output_cell_size = 0.0021648361216
-    ncols = int(np.ceil((maxx - minx) / output_cell_size))
-    nrows = int(np.ceil((maxy - miny) / output_cell_size))
-    x_grid = np.linspace(minx, minx + ncols * output_cell_size, ncols + 1)
-    y_grid = np.linspace(miny, miny + nrows * output_cell_size, nrows + 1)
-    grid_lon, grid_lat = np.meshgrid(x_grid, y_grid)
+    # ---- Cached spatial computation ----
+    spatial = _get_spatial(shp_main, shp_crs, lon, lat)
 
     print("\rStarting IDW", end="", flush=True)
     unique_values = np.unique(values[~np.isnan(values)])
     is_discrete = len(unique_values) <= 10
     power = 2
-    n_neighbors = 6
 
     if not is_discrete:
-        lon = lon.astype(np.float32)
-        lat = lat.astype(np.float32)
-        values = values.astype(np.float32)
-
-        xy = np.column_stack((lon, lat))
-        tree = cKDTree(xy)
-        xi_flat = grid_lon.ravel().astype(np.float32)
-        yi_flat = grid_lat.ravel().astype(np.float32)
-        query_points = np.column_stack((xi_flat, yi_flat))
-
-        dists, idx = tree.query(query_points, k=n_neighbors)
-        dists = dists.astype(np.float32)
-
-        zi = idw_numba(values, dists, idx, power)
-        idw = zi.reshape(grid_lon.shape)
+        vals = values.astype(np.float32)
+        zi = idw_numba(vals, spatial['dists'], spatial['idx'], power)
+        idw = zi.reshape(spatial['query_shape'])
     else:
         points = np.column_stack((lon, lat))
-        idw = griddata(points, values, (grid_lon, grid_lat), method='nearest', fill_value=np.nan)
+        idw = griddata(points, values, (spatial['grid_lon'], spatial['grid_lat']), method='nearest', fill_value=np.nan)
 
-    data_array = xr.DataArray(idw, coords={'lat': y_grid, 'lon': x_grid}, dims=['lat', 'lon'])
-    data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
-    data_array = data_array.rio.write_crs(shp_crs)
+    # Reuse template, just swap data
+    data_array = spatial['template'].copy(data=idw)
     clipped_data = data_array.rio.clip(shp_main.geometry)
     print("\rIDW Done", end="", flush=True)
 
+    # ---- Colormap (unchanged logic) ----
     print("\rApplying Colormap", end="", flush=True)
     if custom_colors is not None:
         if isinstance(custom_colors, list):
@@ -127,6 +160,7 @@ def create_map(df, value, jenis, color, levels, info):
     norm = mcolors.BoundaryNorm(levels, cmap.N)
     print("\rColormap applied", end="", flush=True)
 
+    # ---- Point counts ----
     print("\rStarting point count", end="", flush=True)
     joined = gpd.sjoin(clipped_gdf, shp_main[['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
     province_counts = {}
@@ -137,6 +171,7 @@ def create_map(df, value, jenis, color, levels, info):
         kabupaten_counts[kab_name] = count_points(group, value, levels)
     print(f"\rCounting data done", end="", flush=True)
 
+    # ---- Plot ----
     width_x, width_y = (20, 20)
     fig, ax = plt.subplots(figsize=(width_x, width_y))
     fig.set_frameon(False)
@@ -147,6 +182,8 @@ def create_map(df, value, jenis, color, levels, info):
 
     ax.axis('off')
     ax.set_position([0, 0, 1, 1])
+
+    minx, miny, maxx, maxy = spatial['bounds']
 
     im = clipped_data.plot(ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False)
     shp_main.plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
@@ -180,12 +217,14 @@ def create_map(df, value, jenis, color, levels, info):
         padding_label = 20
         ax.grid(c='k', alpha=0.1)
 
+    # Font created once outside loop
+    font_style = 'medium'
+    fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
+    label_kab_fontsize = 26
+
     for idx_row, row in shp_main.iterrows():
         centroid = row.geometry.centroid
         kab_name = row['KABUPATEN']
-        font_style = 'medium'
-        fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
-        label_kab_fontsize = 26
         ax.annotate(kab_name, (centroid.x, centroid.y), fontsize=label_kab_fontsize, ha='center', va='center', zorder=4, fontproperties=fontprop)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -297,5 +336,5 @@ def create_map(df, value, jenis, color, levels, info):
 
     plt.close(fig)
     gc.collect()
-    del shp_main, others_shp, clipped_data, idw, grid_lon, grid_lat
+    del clipped_data, idw
     return plot_data
