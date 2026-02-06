@@ -176,7 +176,7 @@ def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
         return _spatial_cache[cache_key]
 
     minx, miny, maxx, maxy = bounds
-    output_cell_size = 0.021648361216
+    output_cell_size = 0.0021648361216
     ncols = int(np.ceil((maxx - minx) / output_cell_size))
     nrows = int(np.ceil((maxy - miny) / output_cell_size))
     x_grid = np.linspace(minx, minx + ncols * output_cell_size, ncols + 1)
@@ -416,3 +416,4 @@ def create_map(df, value, jenis, color, levels, info, plot_mode='idw', scatter_s
         del clipped_data, idw
     status_update("Map creation complete")
     return plot_data
+
