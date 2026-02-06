@@ -9,6 +9,7 @@ from .utils import load_prakiraan, load_analisis, clear_data_cache
 from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
 from .upload import upload_files
+from .status import update as status_update
 from .processors import (
     get_pch,
     get_psh,
@@ -38,51 +39,61 @@ def execute(peta, tipe, skala, month):
         
     clear_data_cache()
     
-    print(f"\n{'='*60}")
-    print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
-    print(f"{'='*60}")
+    status_update(f"{'='*60}")
+    status_update(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
+    status_update(f"{'='*60}")
     
     if peta == 'Prakiraan':
         if tipe == 'Curah Hujan':
+            status_update("Getting PCH data...")
             plot_data = get_pch()
         elif tipe == 'Sifat Hujan':
+            status_update("Getting PSH data...")
             plot_data = get_psh()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
             
     elif peta == 'Analisis':
         if tipe == 'Curah Hujan':
+            status_update("Getting ACH data...")
             plot_data = get_ach()
         elif tipe == 'Sifat Hujan':
+            status_update("Getting ASH data...")
             plot_data = get_ash()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
             
     elif peta == 'Probabilistik':
+        status_update("Getting probabilistic data...")
         plot_data = get_pch_prob()
         
     elif peta == 'Verifikasi':
         if skala == 'Bulanan':
+            status_update("Getting qualitative verification...")
             plot_data = get_verif_qual()
         else:
+            status_update("Getting quantitative verification...")
             plot_data = get_verif_quan()
             
     elif peta == 'Normal':
+        status_update("Getting normal data...")
         plot_data = get_normal()
         
     elif peta == 'Bias':
+        status_update("Creating bias map...")
         plot_data = bias_map()
         
     else:
         raise ValueError(f"Unknown peta type: {peta}")
         
     if cfg.png_only:
-        print(f"\nCompleted: {plot_data.get('file_name','png_only')}")
+        status_update(f"Completed: {plot_data.get('file_name','png_only')}")
         return plot_data
-    print("DEBUG: REACHING OVERLAY_IMAGE")
+    
+    status_update("Overlaying image template...")
     map_data = overlay_image(plot_data)
     
-    print(f"\nCompleted: {map_data['file_name']}")
+    status_update(f"Completed: {map_data['file_name']}")
     return map_data
     
 
@@ -107,11 +118,5 @@ __all__ = [
     'get_verif_qual',
     'get_normal',
     'bias_map',
+    'status_update',
 ]
-
-
-
-
-
-
-
