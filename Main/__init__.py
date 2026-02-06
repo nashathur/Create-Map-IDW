@@ -20,6 +20,8 @@ from .processors import (
     get_verif_qual,
     get_normal,
     bias_map,
+    get_hth,
+    load_hth,
 )
 
 download_static_files()
@@ -37,7 +39,8 @@ def execute(peta, tipe, skala, month):
     if cfg.png_only:
         cfg.hgt = False
         
-    clear_data_cache()
+    if peta != 'HTH':
+        clear_data_cache()
     
     status_update(f"{'='*60}")
     status_update(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
@@ -82,6 +85,10 @@ def execute(peta, tipe, skala, month):
     elif peta == 'Bias':
         status_update("Creating bias map...")
         plot_data = bias_map()
+
+    elif peta == 'HTH':
+        status_update("Getting HTH data...")
+        plot_data = get_hth()
         
     else:
         raise ValueError(f"Unknown peta type: {peta}")
@@ -106,6 +113,7 @@ __all__ = [
     'clear_data_cache',
     'load_prakiraan',
     'load_analisis',
+    'load_hth',
     'create_map',
     'overlay_image',
     'execute',
@@ -118,5 +126,6 @@ __all__ = [
     'get_verif_qual',
     'get_normal',
     'bias_map',
+    'get_hth',
     'status_update',
 ]
