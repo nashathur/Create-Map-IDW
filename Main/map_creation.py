@@ -21,13 +21,14 @@ import rasterio.plot
 from .config import cfg
 from .static import font_path, get_basemap, get_hgt_data
 from .utils import load_image_to_memory, idw_numba, count_points
+from .status import update as status_update
 
 _spatial_cache = {}
 
 def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
     """Cache grid, tree, query results, and clip geometry for a given spatial extent + point set."""
     bounds = tuple(shp_main.total_bounds)
-    pts_hash = (lon.tobytes(), lat.tobytes())  # identity of point locations
+    pts_hash = (lon.tobytes(), lat.tobytes())
     cache_key = (bounds, pts_hash)
 
     if cache_key in _spatial_cache:
@@ -47,7 +48,6 @@ def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
     dists, idx = tree.query(query_points, k=n_neighbors)
     dists = dists.astype(np.float32)
 
-    # Pre-build the xarray template and clip mask once
     template = xr.DataArray(
         np.empty(grid_lon.shape, dtype=np.float32),
         coords={'lat': y_grid, 'lon': x_grid},
@@ -76,7 +76,7 @@ def clear_spatial_cache():
     _spatial_cache = {}
     
 def create_map(df, value, jenis, color, levels, info):
-    print(f"\rProcessing {value}", end="", flush=True)
+    status_update(f"Processing {value}")
     year, month, dasarian, year_ver, month_ver, dasarian_ver, wilayah = info
     custom_colors = color
     custom_levels = levels
@@ -103,7 +103,7 @@ def create_map(df, value, jenis, color, levels, info):
         das_title = ""
         das_ver_title = ""
 
-    print("\rBasemap loaded", end="", flush=True)
+    status_update("Basemap loaded")
 
     if not isinstance(df, gpd.GeoDataFrame):
         gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.LON, df.LAT), crs=shp_crs)
@@ -115,12 +115,11 @@ def create_map(df, value, jenis, color, levels, info):
     lon = clipped_gdf.geometry.x.to_numpy()
     lat = clipped_gdf.geometry.y.to_numpy()
     values = clipped_gdf[value].to_numpy()
-    print(f"\rClipping data done", end="", flush=True)
+    status_update("Clipping data done")
 
-    # ---- Cached spatial computation ----
     spatial = _get_spatial(shp_main, shp_crs, lon, lat)
 
-    print("\rStarting IDW", end="", flush=True)
+    status_update("Starting IDW interpolation")
     unique_values = np.unique(values[~np.isnan(values)])
     is_discrete = len(unique_values) <= 10
     power = 2
@@ -133,14 +132,12 @@ def create_map(df, value, jenis, color, levels, info):
         points = np.column_stack((lon, lat))
         idw = griddata(points, values, (spatial['grid_lon'], spatial['grid_lat']), method='nearest', fill_value=np.nan)
 
-    # Reuse template, just swap data
     data_array = spatial['template'].copy(data=idw)
     data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
     clipped_data = data_array.rio.clip(shp_main.geometry)
-    print("\rIDW Done", end="", flush=True)
+    status_update("IDW interpolation complete")
 
-    # ---- Colormap (unchanged logic) ----
-    print("\rApplying Colormap", end="", flush=True)
+    status_update("Applying colormap")
     if custom_colors is not None:
         if isinstance(custom_colors, list):
             cmap = mcolors.ListedColormap(custom_colors)
@@ -159,10 +156,9 @@ def create_map(df, value, jenis, color, levels, info):
         levels = custom_levels
 
     norm = mcolors.BoundaryNorm(levels, cmap.N)
-    print("\rColormap applied", end="", flush=True)
+    status_update("Colormap applied")
 
-    # ---- Point counts ----
-    print("\rStarting point count", end="", flush=True)
+    status_update("Counting points by region")
     joined = gpd.sjoin(clipped_gdf, shp_main[['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
     province_counts = {}
     for prov_name, group in joined.groupby('PROVINSI'):
@@ -170,13 +166,12 @@ def create_map(df, value, jenis, color, levels, info):
     kabupaten_counts = {}
     for kab_name, group in joined.groupby('KABUPATEN'):
         kabupaten_counts[kab_name] = count_points(group, value, levels)
-    print(f"\rCounting data done", end="", flush=True)
+    status_update("Point counting complete")
 
-    # ---- Plot ----
+    status_update("Creating plot")
     width_x, width_y = (20, 20)
     fig, ax = plt.subplots(figsize=(width_x, width_y))
     fig.set_frameon(False)
-    print("\rSetting up fig,ax", end="", flush=True)
 
     if 'spatial_ref' in clipped_data.coords:
         clipped_data = clipped_data.drop_vars('spatial_ref')
@@ -198,7 +193,7 @@ def create_map(df, value, jenis, color, levels, info):
 
     ax.set_xlim(x_center - (max_range + buffer) / 2, x_center + (max_range + buffer) / 2)
     ax.set_ylim(y_center - (max_range + buffer) / 2, y_center + (max_range + buffer) / 2)
-    print("\rAdding up labels", end="", flush=True)
+    status_update("Adding labels")
     ax.set_aspect('equal', 'box')
 
     if cfg.png_only:
@@ -220,7 +215,7 @@ def create_map(df, value, jenis, color, levels, info):
         tick_length = 10
         padding_label = 20
         ax.grid(c='k', alpha=0.1)
-    # Font created once outside loop
+
     font_style = 'medium'
     fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
     label_kab_fontsize = 26
@@ -231,7 +226,7 @@ def create_map(df, value, jenis, color, levels, info):
         ax.annotate(kab_name, (centroid.x, centroid.y), fontsize=label_kab_fontsize, ha='center', va='center', zorder=4, fontproperties=fontprop)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"\rMap: {timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})", end="", flush=True)
+    status_update(f"Map: {timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})")
     file_name = f"plot_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
     if others_shp is not None and len(others_shp) > 0:
@@ -240,7 +235,7 @@ def create_map(df, value, jenis, color, levels, info):
     if cfg.hgt:
         hgt_data = get_hgt_data()
         rasterio.plot.show(hgt_data['data'], ax=ax, extent=hgt_data['extent'], cmap='Blues_r')
-        print("\rhgt ocean depth loaded", end="", flush=True)
+        status_update("Ocean depth layer loaded")
 
     lonlat_label = not cfg.png_only
     if lonlat_label:
@@ -302,7 +297,7 @@ def create_map(df, value, jenis, color, levels, info):
             ytickcoord = max([ytick.get_window_extent(renderer=plt.gcf().canvas.get_renderer()).width for ytick in yticklabels])
             ax.yaxis.set_tick_params(pad=ytickcoord - padding_label)
         else:
-            print("\rNo y-tick labels generated.", end="", flush=True)
+            status_update("No y-tick labels generated")
 
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
@@ -312,6 +307,7 @@ def create_map(df, value, jenis, color, levels, info):
         for spine in ax.spines.values():
             spine.set_linewidth(4)
 
+    status_update("Saving plot to buffer")
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=200, transparent=True, bbox_inches='tight')
     buf.seek(0)
@@ -342,10 +338,5 @@ def create_map(df, value, jenis, color, levels, info):
         plt.close(fig)
     gc.collect()
     del clipped_data, idw
+    status_update("Map creation complete")
     return plot_data
-
-
-
-
-
-
