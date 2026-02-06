@@ -6,23 +6,23 @@ Global configuration and constants for Staklim package.
 class cfg:
     """Global configuration holder - set these before calling execute()"""
     # Map settings
-    jenis_peta = ['Prakiraan']
-    tipe_peta = ['Curah Hujan']
-    skala_peta = ['Dasarian']
+    jenis_peta = None
+    tipe_peta = None
+    skala_peta = None
     
     # Time settings
-    year = 2026
-    year_ver = 2026
-    months = [1]
-    month_ver = 1
-    dasarian = 3
-    dasarian_ver = 2
+    year = None
+    year_ver = None
+    months = None
+    month_ver = None
+    dasarian = None
+    dasarian_ver = None
     
     # Region
-    wilayah = "Papua Barat Daya"
+    wilayah = None
     
     # Display options
-    hgt = True
+    hgt = False
     
     # File paths (set after upload)
     file_prakiraan = None
@@ -52,4 +52,5 @@ STATIC_FILES = {
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
 
 }
+
 
