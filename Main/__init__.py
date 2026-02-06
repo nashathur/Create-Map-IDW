@@ -33,6 +33,9 @@ def execute(peta, tipe, skala, month):
     cfg.skala = skala
     cfg.month = month
 
+    if cfg.png_only:
+        cfg.hgt = False
+        
     clear_data_cache()
     
     print(f"\n{'='*60}")
@@ -110,6 +113,7 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
 
 
 
