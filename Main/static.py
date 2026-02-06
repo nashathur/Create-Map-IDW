@@ -14,6 +14,7 @@ import rasterio.plot
 from thefuzz import process
 
 from .config import CACHE_DIR, STATIC_FILES
+from .status import update as status_update
 
 
 # =============================================================================
@@ -22,16 +23,19 @@ from .config import CACHE_DIR, STATIC_FILES
 
 def download_static_files():
     os.makedirs(CACHE_DIR, exist_ok=True)
+    status_update("Checking static files")
     for filename, url in STATIC_FILES.items():
         filepath = os.path.join(CACHE_DIR, filename)
         if not os.path.exists(filepath):
+            status_update(f"Downloading {filename}")
             urllib.request.urlretrieve(url, filepath)
     # Extract fonts
     fonts_dir = os.path.join(CACHE_DIR, "fonts")
     if not os.path.exists(fonts_dir):
+        status_update("Extracting fonts")
         with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
             z.extractall(CACHE_DIR)
-    print("All template files ready, waiting for uploaded files.")
+    status_update("All template files ready, waiting for uploaded files.")
 
 
 # =============================================================================
@@ -68,9 +72,10 @@ _hgt_cache = None
 def load_idkab():
     global _idkab_cache
     if _idkab_cache is None:
+        status_update("Loading idkab feather")
         filepath = os.path.join(CACHE_DIR, "idkab.feather")
         _idkab_cache = gpd.read_feather(filepath)
-        print(f"\rfeather loaded", end="", flush=True)
+        status_update("feather loaded")
     return _idkab_cache
 
 
@@ -99,6 +104,7 @@ def flexible_match(query, choices, threshold=80):
 
 
 def load_basemap(wilayah, include_others=True, others_buffer_deg=2.0, simplify_others=True):
+    status_update(f"Loading basemap for {wilayah}")
     idkab = load_idkab()
 
     if isinstance(wilayah, str):
@@ -122,10 +128,12 @@ def load_basemap(wilayah, include_others=True, others_buffer_deg=2.0, simplify_o
         if not found_wilayah:
             continue
 
+        status_update(f"Processing {kolom} geometry")
         shp_main = idkab[idkab[kolom].isin(found_wilayah)].copy()
         shp_crs = idkab.crs
 
         if include_others:
+            status_update("Processing neighboring regions")
             minx, miny, maxx, maxy = shp_main.total_bounds
             bounds = idkab.geometry.bounds
             bbox_filter = (
@@ -138,12 +146,13 @@ def load_basemap(wilayah, include_others=True, others_buffer_deg=2.0, simplify_o
             others_shp = nearby[~nearby[kolom].isin(found_wilayah)].copy()
 
             if simplify_others and len(others_shp) > 0:
+                status_update("Simplifying neighboring geometries")
                 others_shp = others_shp.copy()
                 others_shp['geometry'] = others_shp.geometry.simplify(0.01, preserve_topology=True)
         else:
             others_shp = None
 
-        print(f"\rBasemap loaded for {kolom}: {', '.join(found_wilayah)}", end="", flush=True)
+        status_update(f"Basemap loaded for {kolom}: {', '.join(found_wilayah)}")
 
         if len(set(kolom_types)) == 1:
             prefix = 'Provinsi' if kolom_types[0] == 'PROVINSI' else 'Kabupaten'
@@ -178,25 +187,26 @@ def get_basemap(wilayah, include_others=True, others_buffer_deg=2.0, simplify_ot
     cache_key = (wilayah, include_others, others_buffer_deg, simplify_others)
     if cache_key not in _basemap_cache:
         _basemap_cache[cache_key] = load_basemap(wilayah, include_others, others_buffer_deg, simplify_others)
+    else:
+        status_update("Using cached basemap")
     return _basemap_cache[cache_key]
 
 
 def clear_basemap_cache():
     global _basemap_cache
     _basemap_cache = {}
-    print("Basemap cache cleared")
+    status_update("Basemap cache cleared")
 
 
 def get_hgt_data():
     global _hgt_cache
     if _hgt_cache is None:
+        status_update("Loading ocean depth data")
         filepath = os.path.join(CACHE_DIR, 'hgt1.tif')
         with rasterio.open(filepath) as src:
             _hgt_cache = {
                 'data': src.read(1),
                 'extent': rasterio.plot.plotting_extent(src)
             }
-        print("\rhgt cached to memory", end="", flush=True)
+        status_update("hgt cached to memory")
     return _hgt_cache
-
-
