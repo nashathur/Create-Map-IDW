@@ -23,6 +23,7 @@ def image_template():
         'Probabilistik': 'template_probabilistik.png',
         'Bias': 'bias.png',
         'Normal': 'template_ch_bulanan.png',
+        'HTH': 'template_hth.png',
         'default': {
             'Bulanan': {'Curah Hujan': 'template_ch_bulanan.png', 'Sifat Hujan': 'template_sh.png'},
             'Dasarian': {'Curah Hujan': 'template_ch_das.png', 'Sifat Hujan': 'template_sh.png'}
@@ -31,7 +32,7 @@ def image_template():
     try:
         if cfg.peta in templates:
             template_filename = templates[cfg.peta]
-        elif cfg.peta in ['Analisis', 'Prakiraan', 'Normal']:
+        elif cfg.peta in ['Analisis', 'Prakiraan']:
             template_filename = templates['default'][cfg.skala][cfg.tipe]
         else:
             raise ValueError("Invalid peta.")
@@ -41,6 +42,96 @@ def image_template():
         return background_template
     except KeyError:
         raise ValueError("Invalid combination of peta, skala, and tipe")
+
+
+def _draw_hth_text(draw, plot_data, text_x):
+    """Draw HTH-specific title text on the right panel."""
+    month = plot_data['month']
+    year = plot_data['year']
+    dasarian_ver = plot_data['dasarian_ver']
+    month_ver = plot_data['month_ver']
+    year_ver = plot_data['year_ver']
+    nama_wilayah = plot_data['nama_wilayah']
+
+    title_lines = [
+        "MONITORING HARI TANPA HUJAN",
+        "BERTURUT-TURUT",
+        "MONITORING OF CONSECUTIVE NO RAIN DAYS",
+        f"PROVINSI {nama_wilayah.upper()}",
+    ]
+    update_line = f"Update: {dasarian_romawi(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
+
+    font_title = ImageFont.truetype(font_path('bold'), size=32)
+    font_update = ImageFont.truetype(font_path('bold_italic'), size=28)
+
+    text_y_start = 75
+    spacing = 45
+
+    def draw_centered(y, text, font, fill='black'):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        draw.text((text_x - tw // 2, y - th // 2), text, fill=fill, font=font)
+
+    for i, line in enumerate(title_lines):
+        draw_centered(text_y_start + i * spacing, line, font_title)
+
+    draw_centered(
+        text_y_start + len(title_lines) * spacing + 15,
+        update_line, font_update, fill='blue'
+    )
+
+
+def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
+    """Draw standard map title text (Prakiraan, Analisis, etc.)."""
+    peta = plot_data['peta']
+    tipe = plot_data['tipe']
+    skala = plot_data['skala']
+    year = plot_data['year']
+    month = plot_data['month']
+    dasarian = plot_data['dasarian']
+    dasarian_ver = plot_data['dasarian_ver']
+    month_ver = plot_data['month_ver']
+    year_ver = plot_data['year_ver']
+    nama_wilayah = plot_data['nama_wilayah']
+
+    if peta in ['Prakiraan', 'Verifikasi', 'Probabilistik']:
+        if skala == "Bulanan":
+            subtitle_versi = f"Versi: 01 {number_to_bulan(month_ver)} {year_ver}"
+        else:
+            subtitle_versi = f"Versi: {dasarian_romawi(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
+    else:
+        subtitle_versi = ""
+
+    if skala == 'Bulanan':
+        subtitle = f"BULAN {number_to_bulan(month)} {year}"
+    else:
+        subtitle = f"DASARIAN {dasarian_romawi(dasarian)} {number_to_bulan(month)} {year}"
+
+    subtitle_wilayah = nama_wilayah.upper()
+
+    if peta == 'Probabilistik':
+        title = f"PETA PRAKIRAAN {peta} {tipe}"
+    else:
+        title = f"PETA {peta} {tipe}"
+
+    font_title = ImageFont.truetype(font_path('bold'), size=52)
+    font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
+    font_wilayah_large = ImageFont.truetype(font_path('bold'), size=40)
+    font_wilayah_small = ImageFont.truetype(font_path('bold'), size=36)
+    font_versi = ImageFont.truetype(font_path('regular'), size=32)
+
+    font_wilayah = font_wilayah_small if len(subtitle_wilayah) > 41 else font_wilayah_large
+
+    def draw_centered(y, text, font, fill='black'):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text((text_x - tw // 2, y - (bbox[3] - bbox[1]) // 2), text, fill=fill, font=font)
+
+    draw_centered(text_y, title.upper(), font_title)
+    draw_centered(text_y + spacing, subtitle.upper(), font_subtitle)
+    draw_centered(text_y + spacing * 2, subtitle_wilayah, font_wilayah)
+    draw_centered(text_y + int(spacing * 2.8), subtitle_versi, font_versi, fill='blue')
 
 
 def overlay_image(plot_data):
@@ -110,10 +201,10 @@ def overlay_image(plot_data):
                 result['image'].close()
 
         status_update("Probabilistik overlay complete")
-        title = f"PETA PRAKIRAAN {peta} {tipe}"
         result_image = None
 
     else:
+        # Same paste dimensions for all non-Probabilistik maps (including HTH)
         dimension = (2379, 2392)
         location = (40, 42)
         status_update("Processing plot image")
@@ -128,83 +219,60 @@ def overlay_image(plot_data):
         new_image = background_template.copy()
         new_image.paste(result_image, location, result_image)
         status_update("Image composite complete")
-        title = f"PETA {peta} {tipe}"
 
     del plot_data
 
-    # ---- Build text strings ----
+    # ---- Build filename strings ----
     if peta in ['Prakiraan', 'Verifikasi', 'Probabilistik']:
         if skala == "Bulanan":
             das_title = ""
-            das_ver_title = ""
-            dasarian_local = ""
             dasarian_ver_local = ""
-            subtitle_versi = f"Versi: 01 {number_to_bulan(month_ver)} {year_ver}"
         else:
             das_title = f".das{dasarian}"
-            das_ver_title = f".das{dasarian_ver}"
-            dasarian_local = dasarian
             dasarian_ver_local = dasarian_ver
-            subtitle_versi = f"Versi: {dasarian_romawi(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
         ver_title = f"_ver_{year_ver}.{month_ver:02d}{dasarian_ver_local}"
     else:
         das_title = ""
-        das_ver_title = ""
         ver_title = ""
-        subtitle_versi = ""
 
-    if skala == 'Bulanan':
-        subtitle = f"BULAN {number_to_bulan(month)} {year}"
-    else:
-        subtitle = f"DASARIAN {dasarian_romawi(dasarian)} {number_to_bulan(month)} {year}"
-
-    subtitle_wilayah = nama_wilayah.upper()
-
-    if peta == 'Probabilistik':
-        title = f"PETA PRAKIRAAN {peta} {tipe}"
-        text_x = 822
-        text_y = 1916
-        spacing = 55
-    else:
-        title = f"PETA {peta} {tipe}"
-        text_x = 2940
-        text_y = 172
-        spacing = 60
-
+    # ---- Text rendering ----
     status_update("Rendering text overlays")
-    # ---- PIL text rendering ----
-    font_title = ImageFont.truetype(font_path('bold'), size=52)
-    font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
-    font_wilayah_large = ImageFont.truetype(font_path('bold'), size=40)
-    font_wilayah_small = ImageFont.truetype(font_path('bold'), size=36)
-    font_versi = ImageFont.truetype(font_path('regular'), size=32)
-
-    font_wilayah = font_wilayah_small if len(subtitle_wilayah) > 41 else font_wilayah_large
-
     draw = ImageDraw.Draw(new_image)
 
-    def draw_centered(y, text, font, fill='black'):
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
-        draw.text((text_x - tw // 2, y - (bbox[3] - bbox[1]) // 2), text, fill=fill, font=font)
-
-    draw_centered(text_y, title.upper(), font_title)
-    draw_centered(text_y + spacing, subtitle.upper(), font_subtitle)
-    draw_centered(text_y + spacing * 2, subtitle_wilayah, font_wilayah)
-    draw_centered(text_y + int(spacing * 2.8), subtitle_versi, font_versi, fill='blue')
+    if peta == 'HTH':
+        text_x = 2940
+        _draw_hth_text(draw, {
+            'year': year, 'month': month,
+            'dasarian_ver': dasarian_ver, 'month_ver': month_ver, 'year_ver': year_ver,
+            'nama_wilayah': nama_wilayah,
+        }, text_x)
+    elif peta == 'Probabilistik':
+        _draw_default_text(draw, {
+            'peta': peta, 'tipe': tipe, 'skala': skala, 'year': year, 'month': month,
+            'dasarian': dasarian, 'dasarian_ver': dasarian_ver,
+            'month_ver': month_ver, 'year_ver': year_ver, 'nama_wilayah': nama_wilayah,
+        }, text_x=822, text_y=1916, spacing=55)
+    else:
+        _draw_default_text(draw, {
+            'peta': peta, 'tipe': tipe, 'skala': skala, 'year': year, 'month': month,
+            'dasarian': dasarian, 'dasarian_ver': dasarian_ver,
+            'month_ver': month_ver, 'year_ver': year_ver, 'nama_wilayah': nama_wilayah,
+        }, text_x=2940, text_y=172, spacing=60)
 
     status_update("Text overlays complete")
-    # ---- Save directly from PIL ----
+
+    # ---- Display in notebook ----
     status_update("Preparing final output")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     status_update(f"Map: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})")
     file_name = f"peta_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
-    # ---- Display in notebook ----
     from IPython.display import display
     display(new_image)
 
     background_template.close()
+    if result_image is not None:
+        result_image.close()
 
     map_data = {
         'peta': peta,
