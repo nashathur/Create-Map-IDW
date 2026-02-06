@@ -351,6 +351,7 @@ def get_normal():
     status_update("Loading normal data")
     df_normal = pd.read_excel(os.path.join(CACHE_DIR, normal_filename))
     df_normal[['LON', 'LAT']] = df_normal[['LON', 'LAT']].round(2)
+    df_normal = df_normal.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore')  # <-- add this
     levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
     color = ['#340A00', '#8E2800', '#DC6200', '#EFA800', '#EBE100', '#E0FD68', '#8AD58B', '#369135', '#00460C']
     value = cfg.month
@@ -386,3 +387,4 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
