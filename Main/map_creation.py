@@ -86,8 +86,6 @@ def create_map(df, value, jenis, color, levels, info):
     others_shp = basemaps['others_shp']
     nama_wilayah = basemaps['nama_wilayah']
     
-    if cfg.png_only:
-        plt.ioff()
     if cfg.peta == 'Prakiraan' or cfg.peta == 'Verifikasi':
         if cfg.skala == "Bulanan":
             das_title = ""
@@ -336,12 +334,12 @@ def create_map(df, value, jenis, color, levels, info):
         'file_name': file_name,
         'nama_wilayah': nama_wilayah,
     }
-    plt.ion()
-    plt.close(fig)
-    
+    if not cfg.png_only:
+        plt.close(fig)
     gc.collect()
     del clipped_data, idw
     return plot_data
+
 
 
 
