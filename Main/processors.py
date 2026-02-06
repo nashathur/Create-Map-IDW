@@ -254,7 +254,7 @@ def get_hth():
         5: '#FFB6C1',   # Sangat Panjang (31-60 days) - Pink
         6: '#FF0000',   # Kekeringan Ekstrim (>60)    - Red
     }
-    marker_size = 120
+    marker_size = 240
 
     info = (
         cfg.year, cfg.month,
@@ -471,3 +471,4 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
