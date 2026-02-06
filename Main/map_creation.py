@@ -255,10 +255,12 @@ def create_map(df, value, jenis, color, levels, info):
                 return 0.05
             elif range_val <= 1:
                 return 0.1
-            elif range_val <= 5:
+            elif range_val <= 3:
                 return 0.5
+            elif range_val <= 8:
+                return 1.0
             else:
-                return 1
+                return 2.0
 
         x_step = calculate_step(x_range)
         y_step = calculate_step(y_range)
@@ -341,6 +343,7 @@ def create_map(df, value, jenis, color, levels, info):
     gc.collect()
     del clipped_data, idw
     return plot_data
+
 
 
 
