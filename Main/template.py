@@ -145,8 +145,6 @@ def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
         max_width=PANEL_WIDTH - TEXT_PADDING,
         min_size=24, max_size=40)
 
-    font_wilayah = font_wilayah_small if len(subtitle_wilayah) > 41 else font_wilayah_large
-
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
@@ -322,4 +320,5 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
