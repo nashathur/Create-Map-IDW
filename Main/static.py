@@ -25,14 +25,13 @@ def download_static_files():
     for filename, url in STATIC_FILES.items():
         filepath = os.path.join(CACHE_DIR, filename)
         if not os.path.exists(filepath):
-            print(f"Downloading {filename}...")
             urllib.request.urlretrieve(url, filepath)
     # Extract fonts
     fonts_dir = os.path.join(CACHE_DIR, "fonts")
     if not os.path.exists(fonts_dir):
         with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
             z.extractall(CACHE_DIR)
-    print("All static files ready.")
+    print("All template files ready, waiting for uploaded files.")
 
 
 # =============================================================================
@@ -199,4 +198,5 @@ def get_hgt_data():
             }
         print("\rhgt cached to memory", end="", flush=True)
     return _hgt_cache
+
 
