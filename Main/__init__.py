@@ -76,21 +76,15 @@ def execute(peta, tipe, skala, month):
     else:
         raise ValueError(f"Unknown peta type: {peta}")
         
-    print(f"DEBUG png_only={cfg.png_only}")
     if cfg.png_only:
-        from IPython.display import display
-        if peta == 'Probabilistik':
-            for key in ['result_b50','result_b100','result_b150','result_a50','result_a100','result_a150']:
-                display(plot_data[key]['image'])
-        else:
-            display(plot_data['image'])
         print(f"\nCompleted: {plot_data.get('file_name','png_only')}")
         return plot_data
-    
+    print("DEBUG: REACHING OVERLAY_IMAGE")
     map_data = overlay_image(plot_data)
     
     print(f"\nCompleted: {map_data['file_name']}")
     return map_data
+    
 
 
 __all__ = [
@@ -114,6 +108,7 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
 
 
 
