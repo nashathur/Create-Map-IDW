@@ -201,7 +201,10 @@ def create_map(df, value, jenis, color, levels, info):
     print("\rAdding up labels", end="", flush=True)
     ax.set_aspect('equal', 'box')
 
-    if cfg.peta == 'Probabilistik':
+    if cfg.png_only:
+        label_kab_fontsize = 18
+        ax.axis('off')
+    elif cfg.peta == 'Probabilistik':
         label_kab_fontsize = 25
         label_tick_fontsize = 45
         tick_width = 7
@@ -217,7 +220,6 @@ def create_map(df, value, jenis, color, levels, info):
         tick_length = 10
         padding_label = 20
         ax.grid(c='k', alpha=0.1)
-
     # Font created once outside loop
     font_style = 'medium'
     fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
@@ -240,7 +242,7 @@ def create_map(df, value, jenis, color, levels, info):
         rasterio.plot.show(hgt_data['data'], ax=ax, extent=hgt_data['extent'], cmap='Blues_r')
         print("\rhgt ocean depth loaded", end="", flush=True)
 
-    lonlat_label = True
+    lonlat_label = not cfg.png_only
     if lonlat_label:
         ax.axis('on')
         xlim = ax.get_xlim()
@@ -339,6 +341,7 @@ def create_map(df, value, jenis, color, levels, info):
     gc.collect()
     del clipped_data, idw
     return plot_data
+
 
 
 
