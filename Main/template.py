@@ -137,6 +137,7 @@ def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
 
     font_title = ImageFont.truetype(font_path('bold'), size=52)
     font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
+    font_versi = ImageFont.truetype(font_path('regular'), size=32)
     
     PANEL_WIDTH = 996
     TEXT_PADDING = 80  # 40px each side
@@ -320,5 +321,6 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
