@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 from .config import cfg, CACHE_DIR
 from .static import font_path
 from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi
+from .status import update as status_update
 
 
 def image_template():
@@ -34,7 +35,7 @@ def image_template():
             template_filename = templates['default'][cfg.skala][cfg.tipe]
         else:
             raise ValueError("Invalid peta.")
-        print("\rRetrieving background template", end="", flush=True)
+        status_update("Retrieving background template")
         filepath = os.path.join(CACHE_DIR, template_filename)
         background_template = load_image_to_memory(filepath).convert("RGBA")
         return background_template
@@ -68,19 +69,19 @@ def overlay_image(plot_data):
         hss = None
         pss = None
 
-    print("\rLoading template image ...", end="", flush=True)
+    status_update("Loading template image")
     background_template = image_template()
-    print("\rTemplate image done", end="", flush=True)
+    status_update("Template image loaded")
 
     if peta == 'Probabilistik':
-        print("\rLoading Probabilistik image ...", end="", flush=True)
+        status_update("Loading Probabilistik images")
         result_b50 = plot_data['result_b50']
         result_b100 = plot_data['result_b100']
         result_b150 = plot_data['result_b150']
         result_a50 = plot_data['result_a50']
         result_a100 = plot_data['result_a100']
         result_a150 = plot_data['result_a150']
-        print("\rProbabilistik image done", end="", flush=True)
+        status_update("Probabilistik images loaded")
         x_dim, y_dim = 854, 777
         x_loc, y_loc = 171, 140
         dimension = (x_dim, y_dim)
@@ -96,7 +97,7 @@ def overlay_image(plot_data):
         results = [result_b50, result_b100, result_b150, result_a50, result_a100, result_a150]
         new_image = background_template.copy()
 
-        print("\rOverlaying Probabilistik image ...", end="", flush=True)
+        status_update("Overlaying Probabilistik images")
         for result, location in zip(results, locations):
             img = result['image']
             img = img.resize(dimension)
@@ -108,14 +109,14 @@ def overlay_image(plot_data):
             if 'image' in result and result['image'] is not None:
                 result['image'].close()
 
-        print("\rOverlaying Probabilistik image done", end="", flush=True)
+        status_update("Probabilistik overlay complete")
         title = f"PETA PRAKIRAAN {peta} {tipe}"
         result_image = None
 
     else:
         dimension = (2379, 2392)
         location = (40, 42)
-        print("\rTemplate image loaded", end="", flush=True)
+        status_update("Processing plot image")
 
         if 'fig' in plot_data and plot_data['fig'] is not None:
             plt.close(plot_data['fig'])
@@ -123,10 +124,10 @@ def overlay_image(plot_data):
         result_image = plot_data['image'].convert("RGBA")
         result_image = result_image.resize(dimension)
         plot_data['image'].close()
-        print("\rPlot image loaded", end="", flush=True)
+        status_update("Plot image processed")
         new_image = background_template.copy()
         new_image.paste(result_image, location, result_image)
-        print("\rImage composite done", end="", flush=True)
+        status_update("Image composite complete")
         title = f"PETA {peta} {tipe}"
 
     del plot_data
@@ -170,10 +171,8 @@ def overlay_image(plot_data):
         text_y = 172
         spacing = 60
 
+    status_update("Rendering text overlays")
     # ---- PIL text rendering ----
-    # Font sizes here are in pixels, matching the visual output of the old
-    # matplotlib code at figsize=(25,25) dpi=200 (5000x5000 canvas).
-    # matplotlib fontsize=26 at dpi=200 ≈ 52px, fontsize=23 ≈ 46px, etc.
     font_title = ImageFont.truetype(font_path('bold'), size=52)
     font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
     font_wilayah_large = ImageFont.truetype(font_path('bold'), size=40)
@@ -184,7 +183,6 @@ def overlay_image(plot_data):
 
     draw = ImageDraw.Draw(new_image)
 
-    # centered text helper — PIL doesn't have anchor='mm' in older versions
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
@@ -195,10 +193,11 @@ def overlay_image(plot_data):
     draw_centered(text_y + spacing * 2, subtitle_wilayah, font_wilayah)
     draw_centered(text_y + int(spacing * 2.8), subtitle_versi, font_versi, fill='blue')
 
+    status_update("Text overlays complete")
     # ---- Save directly from PIL ----
-    print("\rSaving Plot", end="", flush=True)
+    status_update("Preparing final output")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"\rMap: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})", end="", flush=True)
+    status_update(f"Map: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})")
     file_name = f"peta_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
     # ---- Display in notebook ----
@@ -206,8 +205,6 @@ def overlay_image(plot_data):
     display(new_image)
 
     background_template.close()
-    #if result_image is not None:
-        #result_image.close()
 
     map_data = {
         'peta': peta,
@@ -231,7 +228,5 @@ def overlay_image(plot_data):
         map_data['accuracy'] = accuracy
         map_data['hss'] = hss
         map_data['pss'] = pss
-    print("")
+    status_update("Overlay complete")
     return map_data
-
-
