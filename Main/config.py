@@ -34,6 +34,8 @@ class cfg:
     skala = None
     month = None
 
+    png_only = False
+
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 CACHE_DIR = "/content/static_data"
@@ -50,3 +52,4 @@ STATIC_FILES = {
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
 
 }
+
