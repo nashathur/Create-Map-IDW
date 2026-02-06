@@ -27,6 +27,7 @@ class cfg:
     # File paths (set after upload)
     file_prakiraan = None
     file_analisis = None
+    file_hth = None
     
     # Runtime state (set by execute)
     peta = None
@@ -49,8 +50,6 @@ STATIC_FILES = {
     'template_sh.png': f"{GITHUB_BASE}/template_sh.png",
     'template_verifikasi.png': f"{GITHUB_BASE}/template_verifikasi.png",
     'template_probabilistik.png': f"{GITHUB_BASE}/template_probabilistik.png",
+    'template_hth.png': f"{GITHUB_BASE}/template_hth.png",
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
-
 }
-
-
