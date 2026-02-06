@@ -76,7 +76,6 @@ def clear_data_cache():
     global _df_prakiraan_cache, _df_analisis_cache
     _df_prakiraan_cache = None
     _df_analisis_cache = None
-    print("Data cache cleared")
 
 
 def load_prakiraan(copy=False):
@@ -355,5 +354,6 @@ def arrange_table():
     print("\rDataframe done", end="", flush=True)
 
     return df_prakiraan, df_analisis, merged_df
+
 
 
