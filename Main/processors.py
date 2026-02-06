@@ -47,20 +47,16 @@ def get_pch():
     else:
         if 'CH' in df_pch.columns:
             value = 'CH'
-            print("\rFound CH", end="", flush=True)
         elif 'VAL' in df_pch.columns:
             value = 'VAL'
-            print("\rFound VAL", end="", flush=True)
         else:
             raise ValueError("Neither CH nor VAL found in the DataFrame")
-
         jenis = 'PCHdas'
 
     print(f"\rCreating {jenis} Map", end="", flush=True)
     plot_data = create_map(df_pch, value, jenis, color, levels, info)
     del df_pch
     return plot_data
-
 
 def get_psh():
     print("\rProcessing PSH", end="", flush=True)
@@ -124,7 +120,6 @@ def get_ash():
     plot_data = create_map(df_ash, value, jenis, color, levels, info)
     del df_ash
     return plot_data
-
 
 # =============================================================================
 # PROBABILISTIK
@@ -367,3 +362,4 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
