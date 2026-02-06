@@ -1,6 +1,7 @@
 # map_creation.py
 """
-Core map creation with IDW interpolation and visualization.
+Core map creation with IDW interpolation and scatter plot visualization.
+Includes shared plotting helpers used by both modes.
 """
 
 import io
@@ -23,7 +24,147 @@ from .static import font_path, get_basemap, get_hgt_data
 from .utils import load_image_to_memory, idw_numba, count_points
 from .status import update as status_update
 
+
+# =============================================================================
+# SHARED PLOTTING HELPERS
+# =============================================================================
+
+def _setup_figure(figsize=(20, 20)):
+    """Create a frameless figure with full-area axes."""
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.set_frameon(False)
+    ax.set_position([0, 0, 1, 1])
+    return fig, ax
+
+
+def _setup_extent(ax, bounds, buffer_frac=0.05):
+    """Set square extent centered on bounds with buffer."""
+    minx, miny, maxx, maxy = bounds
+    x_center = (minx + maxx) / 2
+    y_center = (miny + maxy) / 2
+    x_range = maxx - minx
+    y_range = maxy - miny
+    max_range = max(x_range, y_range)
+    buffer = buffer_frac * max_range
+    ax.set_xlim(x_center - (max_range + buffer) / 2, x_center + (max_range + buffer) / 2)
+    ax.set_ylim(y_center - (max_range + buffer) / 2, y_center + (max_range + buffer) / 2)
+    ax.set_aspect('equal', 'box')
+
+
+def _add_kabupaten_labels(ax, shp_main, fontsize=26, font_style='medium'):
+    """Add kabupaten name annotations at centroids."""
+    status_update("Adding labels")
+    fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
+    for _, row in shp_main.iterrows():
+        centroid = row.geometry.centroid
+        kab_name = row['KABUPATEN']
+        ax.annotate(
+            kab_name, (centroid.x, centroid.y),
+            fontsize=fontsize, ha='center', va='center',
+            zorder=4, fontproperties=fontprop
+        )
+
+
+def _calculate_step(range_val):
+    """Calculate tick step size based on axis range."""
+    if range_val <= 0.1:
+        return 0.05
+    elif range_val <= 1:
+        return 0.1
+    elif range_val <= 3:
+        return 0.5
+    elif range_val <= 8:
+        return 1.0
+    else:
+        return 2.0
+
+
+def _add_lonlat_ticks(ax, label_tick_fontsize=25, tick_width=3, tick_length=10, padding_label=20):
+    """Add lon/lat tick labels, grid, and spine formatting."""
+    ax.grid(c='k', alpha=0.1)
+    ax.axis('on')
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    xr = xlim[1] - xlim[0]
+    yr = ylim[1] - ylim[0]
+
+    x_step = _calculate_step(xr)
+    y_step = _calculate_step(yr)
+
+    xticks = np.arange(
+        np.floor(xlim[0] / x_step) * x_step,
+        np.ceil(xlim[1] / x_step) * x_step + x_step, x_step
+    )
+    yticks = np.arange(
+        np.floor(ylim[0] / y_step) * y_step,
+        np.ceil(ylim[1] / y_step) * y_step + y_step, y_step
+    )
+    ax.set_xticks(xticks)
+    ax.set_yticks(yticks)
+
+    def format_tick(x, pos):
+        if x == 0:
+            return "0°"
+        elif x < 0:
+            return f"{abs(x):.2f}°W" if x_step < 1 else f"{abs(x):.0f}°W"
+        else:
+            return f"{x:.2f}°E" if x_step < 1 else f"{x:.0f}°E"
+
+    def format_tick_y(y, pos):
+        if y == 0:
+            return "0°"
+        elif y < 0:
+            return f"{abs(y):.2f}°S" if y_step < 1 else f"{abs(y):.0f}°S"
+        else:
+            return f"{y:.2f}°N" if y_step < 1 else f"{y:.0f}°N"
+
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(format_tick))
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(format_tick_y))
+
+    ax.tick_params(
+        which='both', direction='out', length=tick_length, width=tick_width,
+        color='black', top=True, right=True, left=True, bottom=True,
+        labeltop=True, labelright=True, labelleft=True, labelbottom=True,
+        labelsize=label_tick_fontsize, pad=2
+    )
+
+    plt.setp(ax.get_yticklabels(), rotation=90, ha='center', va='center')
+
+    yticklabels = ax.get_yticklabels()
+    if yticklabels:
+        ytickcoord = max([
+            ytick.get_window_extent(renderer=plt.gcf().canvas.get_renderer()).width
+            for ytick in yticklabels
+        ])
+        ax.yaxis.set_tick_params(pad=ytickcoord - padding_label)
+    else:
+        status_update("No y-tick labels generated")
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+
+    for spine in ax.spines.values():
+        spine.set_linewidth(4)
+
+
+def _save_plot_to_image(fig, dpi=200):
+    """Save figure to buffer and return PIL Image."""
+    status_update("Saving plot to buffer")
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=dpi, transparent=True, bbox_inches='tight')
+    buf.seek(0)
+    return load_image_to_memory(buf)
+
+
+# =============================================================================
+# IDW SPATIAL CACHE
+# =============================================================================
+
 _spatial_cache = {}
+
 
 def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
     """Cache grid, tree, query results, and clip geometry for a given spatial extent + point set."""
@@ -71,11 +212,29 @@ def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
     _spatial_cache[cache_key] = result
     return result
 
+
 def clear_spatial_cache():
     global _spatial_cache
     _spatial_cache = {}
-    
-def create_map(df, value, jenis, color, levels, info):
+
+
+# =============================================================================
+# MAIN CREATE MAP
+# =============================================================================
+
+def create_map(df, value, jenis, color, levels, info, plot_mode='idw', scatter_size=120):
+    """
+    Create a map plot.
+
+    Parameters
+    ----------
+    plot_mode : str
+        'idw' for interpolated raster maps (default).
+        'scatter' for point scatter maps (e.g. HTH).
+        For scatter mode, `color` must be a dict {value: hex_color}.
+    scatter_size : int
+        Marker size for scatter mode.
+    """
     status_update(f"Processing {value}")
     year, month, dasarian, year_ver, month_ver, dasarian_ver, wilayah = info
     custom_colors = color
@@ -85,7 +244,7 @@ def create_map(df, value, jenis, color, levels, info):
     shp_crs = basemaps['crs']
     others_shp = basemaps['others_shp']
     nama_wilayah = basemaps['nama_wilayah']
-    
+
     if cfg.peta == 'Prakiraan' or cfg.peta == 'Verifikasi':
         if cfg.skala == "Bulanan":
             das_title = ""
@@ -117,113 +276,97 @@ def create_map(df, value, jenis, color, levels, info):
     values = clipped_gdf[value].to_numpy()
     status_update("Clipping data done")
 
-    spatial = _get_spatial(shp_main, shp_crs, lon, lat)
+    # ---- IDW interpolation ----
+    if plot_mode == 'idw':
+        spatial = _get_spatial(shp_main, shp_crs, lon, lat)
 
-    status_update("Starting IDW interpolation")
-    unique_values = np.unique(values[~np.isnan(values)])
-    is_discrete = len(unique_values) <= 10
-    power = 2
+        status_update("Starting IDW interpolation")
+        unique_values = np.unique(values[~np.isnan(values)])
+        is_discrete = len(unique_values) <= 10
+        power = 2
 
-    if not is_discrete:
-        vals = values.astype(np.float32)
-        zi = idw_numba(vals, spatial['dists'], spatial['idx'], power)
-        idw = zi.reshape(spatial['query_shape'])
-    else:
-        points = np.column_stack((lon, lat))
-        idw = griddata(points, values, (spatial['grid_lon'], spatial['grid_lat']), method='nearest', fill_value=np.nan)
-
-    data_array = spatial['template'].copy(data=idw)
-    data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
-    clipped_data = data_array.rio.clip(shp_main.geometry)
-    status_update("IDW interpolation complete")
-
-    status_update("Applying colormap")
-    if custom_colors is not None:
-        if isinstance(custom_colors, list):
-            cmap = mcolors.ListedColormap(custom_colors)
-        else:
-            cmap = custom_colors
-    else:
-        cmap = plt.cm.get_cmap('viridis' if not is_discrete else 'Set1', len(unique_values))
-
-    if custom_levels is None:
         if not is_discrete:
-            vmin, vmax = np.nanmin(clipped_data), np.nanmax(clipped_data)
-            levels = np.linspace(vmin, vmax, 10)
+            vals = values.astype(np.float32)
+            zi = idw_numba(vals, spatial['dists'], spatial['idx'], power)
+            idw = zi.reshape(spatial['query_shape'])
         else:
-            levels = unique_values
+            points = np.column_stack((lon, lat))
+            idw = griddata(points, values, (spatial['grid_lon'], spatial['grid_lat']), method='nearest', fill_value=np.nan)
+
+        data_array = spatial['template'].copy(data=idw)
+        data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
+        clipped_data = data_array.rio.clip(shp_main.geometry)
+        status_update("IDW interpolation complete")
+
+        status_update("Applying colormap")
+        if custom_colors is not None:
+            if isinstance(custom_colors, list):
+                cmap = mcolors.ListedColormap(custom_colors)
+            else:
+                cmap = custom_colors
+        else:
+            cmap = plt.cm.get_cmap('viridis' if not is_discrete else 'Set1', len(unique_values))
+
+        if custom_levels is None:
+            if not is_discrete:
+                vmin, vmax = np.nanmin(clipped_data), np.nanmax(clipped_data)
+                levels = np.linspace(vmin, vmax, 10)
+            else:
+                levels = unique_values
+        else:
+            levels = custom_levels
+
+        norm = mcolors.BoundaryNorm(levels, cmap.N)
+        status_update("Colormap applied")
+
+        status_update("Counting points by region")
+        joined = gpd.sjoin(clipped_gdf, shp_main[['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
+        province_counts = {}
+        for prov_name, group in joined.groupby('PROVINSI'):
+            province_counts[prov_name] = count_points(group, value, levels)
+        kabupaten_counts = {}
+        for kab_name, group in joined.groupby('KABUPATEN'):
+            kabupaten_counts[kab_name] = count_points(group, value, levels)
+        status_update("Point counting complete")
+
+        bounds = spatial['bounds']
     else:
-        levels = custom_levels
+        province_counts = None
+        kabupaten_counts = None
+        bounds = tuple(shp_main.total_bounds)
 
-    norm = mcolors.BoundaryNorm(levels, cmap.N)
-    status_update("Colormap applied")
-
-    status_update("Counting points by region")
-    joined = gpd.sjoin(clipped_gdf, shp_main[['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
-    province_counts = {}
-    for prov_name, group in joined.groupby('PROVINSI'):
-        province_counts[prov_name] = count_points(group, value, levels)
-    kabupaten_counts = {}
-    for kab_name, group in joined.groupby('KABUPATEN'):
-        kabupaten_counts[kab_name] = count_points(group, value, levels)
-    status_update("Point counting complete")
-
+    # ---- Create figure ----
     status_update("Creating plot")
-    width_x, width_y = (20, 20)
-    fig, ax = plt.subplots(figsize=(width_x, width_y))
-    fig.set_frameon(False)
-
-    if 'spatial_ref' in clipped_data.coords:
-        clipped_data = clipped_data.drop_vars('spatial_ref')
-
+    fig, ax = _setup_figure()
     ax.axis('off')
-    ax.set_position([0, 0, 1, 1])
 
-    minx, miny, maxx, maxy = spatial['bounds']
+    # ---- Plot data layer ----
+    if plot_mode == 'idw':
+        if 'spatial_ref' in clipped_data.coords:
+            clipped_data = clipped_data.drop_vars('spatial_ref')
+        im = clipped_data.plot(ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False)
+        shp_main.plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
+    else:
+        shp_main.plot(ax=ax, facecolor='#FFFDE7', edgecolor='k', linewidth=1.0, zorder=2)
+        shp_main.plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
+        status_update("Plotting scatter points")
+        for cat_val, cat_color in custom_colors.items():
+            subset = clipped_gdf[clipped_gdf[value] == cat_val]
+            if len(subset) > 0:
+                ax.scatter(
+                    subset.geometry.x, subset.geometry.y,
+                    c=cat_color, s=scatter_size,
+                    edgecolors='black', linewidths=0.5, zorder=5
+                )
 
-    im = clipped_data.plot(ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False)
-    shp_main.plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
+    _setup_extent(ax, bounds)
 
-    x_center = (minx + maxx) / 2
-    y_center = (miny + maxy) / 2
-    x_range = maxx - minx
-    y_range = maxy - miny
-    max_range = max(x_range, y_range)
-    buffer = 0.05 * max_range
-
-    ax.set_xlim(x_center - (max_range + buffer) / 2, x_center + (max_range + buffer) / 2)
-    ax.set_ylim(y_center - (max_range + buffer) / 2, y_center + (max_range + buffer) / 2)
-    status_update("Adding labels")
-    ax.set_aspect('equal', 'box')
-
-    if cfg.png_only:
-        label_kab_fontsize = 18
-        ax.axis('off')
-    elif cfg.peta == 'Probabilistik':
-        label_kab_fontsize = 25
-        label_tick_fontsize = 45
-        tick_width = 7
-        tick_length = 20
-        padding_label = 30
+    if not cfg.png_only and cfg.peta == 'Probabilistik':
         ax.grid(c='k', alpha=0.4)
         for spine in ax.spines.values():
-            spine.set_linewidth(tick_width)
-    else:
-        label_kab_fontsize = 18
-        label_tick_fontsize = 25
-        tick_width = 3
-        tick_length = 10
-        padding_label = 20
-        ax.grid(c='k', alpha=0.1)
+            spine.set_linewidth(7)
 
-    font_style = 'medium'
-    fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
-    label_kab_fontsize = 26
-
-    for idx_row, row in shp_main.iterrows():
-        centroid = row.geometry.centroid
-        kab_name = row['KABUPATEN']
-        ax.annotate(kab_name, (centroid.x, centroid.y), fontsize=label_kab_fontsize, ha='center', va='center', zorder=4, fontproperties=fontprop)
+    _add_kabupaten_labels(ax, shp_main)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     status_update(f"Map: {timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})")
@@ -237,81 +380,13 @@ def create_map(df, value, jenis, color, levels, info):
         rasterio.plot.show(hgt_data['data'], ax=ax, extent=hgt_data['extent'], cmap='Blues_r')
         status_update("Ocean depth layer loaded")
 
-    lonlat_label = not cfg.png_only
-    if lonlat_label:
-        ax.axis('on')
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-        x_range = xlim[1] - xlim[0]
-        y_range = ylim[1] - ylim[0]
-
-        def calculate_step(range_val):
-            if range_val <= 0.1:
-                return 0.05
-            elif range_val <= 1:
-                return 0.1
-            elif range_val <= 3:
-                return 0.5
-            elif range_val <= 8:
-                return 1.0
-            else:
-                return 2.0
-
-        x_step = calculate_step(x_range)
-        y_step = calculate_step(y_range)
-
-        xticks = np.arange(np.floor(xlim[0] / x_step) * x_step, np.ceil(xlim[1] / x_step) * x_step + x_step, x_step)
-        yticks = np.arange(np.floor(ylim[0] / y_step) * y_step, np.ceil(ylim[1] / y_step) * y_step + y_step, y_step)
-
-        ax.set_xticks(xticks)
-        ax.set_yticks(yticks)
-
-        def format_tick(x, pos):
-            if x == 0:
-                return "0°"
-            elif x < 0:
-                return f"{abs(x):.2f}°W" if x_step < 1 else f"{abs(x):.0f}°W"
-            else:
-                return f"{x:.2f}°E" if x_step < 1 else f"{x:.0f}°E"
-
-        def format_tick_y(y, pos):
-            if y == 0:
-                return "0°"
-            elif y < 0:
-                return f"{abs(y):.2f}°S" if y_step < 1 else f"{abs(y):.0f}°S"
-            else:
-                return f"{y:.2f}°N" if y_step < 1 else f"{y:.0f}°N"
-
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(format_tick))
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(format_tick_y))
-
-        ax.tick_params(which='both', direction='out', length=tick_length, width=tick_width, color='black',
-                       top=True, right=True, left=True, bottom=True,
-                       labeltop=True, labelright=True, labelleft=True, labelbottom=True,
-                       labelsize=label_tick_fontsize, pad=2)
-
-        plt.setp(ax.get_yticklabels(), rotation=90, ha='center', va='center')
-
-        yticklabels = ax.get_yticklabels()
-        if yticklabels:
-            ytickcoord = max([ytick.get_window_extent(renderer=plt.gcf().canvas.get_renderer()).width for ytick in yticklabels])
-            ax.yaxis.set_tick_params(pad=ytickcoord - padding_label)
+    if not cfg.png_only:
+        if cfg.peta == 'Probabilistik':
+            _add_lonlat_ticks(ax, label_tick_fontsize=45, tick_width=7, tick_length=20, padding_label=30)
         else:
-            status_update("No y-tick labels generated")
+            _add_lonlat_ticks(ax)
 
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-        ax.set_xlabel('')
-        ax.set_ylabel('')
-
-        for spine in ax.spines.values():
-            spine.set_linewidth(4)
-
-    status_update("Saving plot to buffer")
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=200, transparent=True, bbox_inches='tight')
-    buf.seek(0)
-    img = load_image_to_memory(buf)
+    img = _save_plot_to_image(fig)
 
     plot_data = {
         'fig': fig,
@@ -327,7 +402,7 @@ def create_map(df, value, jenis, color, levels, info):
         'month_ver': month_ver,
         'year_ver': year_ver,
         'value': value,
-        'levels': levels,
+        'levels': levels if plot_mode == 'idw' else list(custom_colors.keys()),
         'province_data': province_counts,
         'kabupaten_data': kabupaten_counts,
         'image': img,
@@ -337,6 +412,7 @@ def create_map(df, value, jenis, color, levels, info):
     if not cfg.png_only:
         plt.close(fig)
     gc.collect()
-    del clipped_data, idw
+    if plot_mode == 'idw':
+        del clipped_data, idw
     status_update("Map creation complete")
     return plot_data
