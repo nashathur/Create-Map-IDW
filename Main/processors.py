@@ -24,6 +24,52 @@ from .status import update as status_update
 
 
 # =============================================================================
+# HTH DATA LOADING
+# =============================================================================
+
+def load_hth():
+    if cfg.file_hth is None:
+        raise ValueError("cfg.file_hth not set. Set it to the uploaded file path.")
+
+    filepath = cfg.file_hth
+    status_update(f"Loading HTH file: {filepath}")
+
+    if filepath.endswith('.csv'):
+        df = pd.read_csv(filepath)
+    elif filepath.endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(filepath)
+    else:
+        raise FileNotFoundError(f"Unsupported file format: {filepath}")
+
+    # Normalize column names
+    col_map = {}
+    for col in df.columns:
+        cu = str(col).upper().strip()
+        if cu in ('BUJUR', 'LON', 'LONGITUDE'):
+            col_map[col] = 'LON'
+        elif cu in ('LINTANG', 'LAT', 'LATITUDE'):
+            col_map[col] = 'LAT'
+        elif cu in ('INDEKS HTH', 'INDEKS_HTH', 'INDEX_HTH', 'INDEKS'):
+            col_map[col] = 'INDEKS_HTH'
+        elif cu == 'HTH':
+            col_map[col] = 'HTH'
+
+    df = df.rename(columns=col_map)
+
+    if 'LON' not in df.columns or 'LAT' not in df.columns:
+        raise ValueError(f"Cannot find LON/LAT columns. Available: {list(df.columns)}")
+    if 'INDEKS_HTH' not in df.columns:
+        raise ValueError(f"Cannot find INDEKS HTH column. Available: {list(df.columns)}")
+
+    df[['LON', 'LAT']] = df[['LON', 'LAT']].apply(pd.to_numeric, errors='coerce')
+    df['INDEKS_HTH'] = pd.to_numeric(df['INDEKS_HTH'], errors='coerce').fillna(0).astype(int)
+    df = df.dropna(subset=['LON', 'LAT'])
+
+    status_update(f"HTH file loaded: {len(df)} stations")
+    return df
+
+
+# =============================================================================
 # PRAKIRAAN
 # =============================================================================
 
@@ -192,6 +238,44 @@ def get_pch_prob():
 
 
 # =============================================================================
+# HTH
+# =============================================================================
+
+def get_hth():
+    status_update("Processing HTH")
+    df_hth = load_hth()
+
+    hth_colors = {
+        0: '#2E8B57',   # Masih Ada Hujan            - Dark green
+        1: '#90EE90',   # Sangat Pendek (1-5 days)   - Light green
+        2: '#FFD700',   # Pendek (6-10 days)          - Yellow
+        3: '#FF8C00',   # Menengah (11-20 days)       - Orange
+        4: '#8B4513',   # Panjang (21-30 days)        - Brown
+        5: '#FFB6C1',   # Sangat Panjang (31-60 days) - Pink
+        6: '#FF0000',   # Kekeringan Ekstrim (>60)    - Red
+    }
+    marker_size = 120
+
+    info = (
+        cfg.year, cfg.month,
+        cfg.dasarian,
+        cfg.year_ver,
+        cfg.month_ver,
+        cfg.dasarian_ver,
+        cfg.wilayah,
+    )
+    jenis = 'HTH'
+    value = 'INDEKS_HTH'
+
+    status_update(f"Creating {jenis} Map")
+    plot_data = create_map(
+        df_hth, value, jenis, hth_colors, None, info,
+        plot_mode='scatter', scatter_size=marker_size
+    )
+    return plot_data
+
+
+# =============================================================================
 # VERIFIKASI
 # =============================================================================
 
@@ -351,7 +435,7 @@ def get_normal():
     status_update("Loading normal data")
     df_normal = pd.read_excel(os.path.join(CACHE_DIR, normal_filename))
     df_normal[['LON', 'LAT']] = df_normal[['LON', 'LAT']].round(2)
-    df_normal = df_normal.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore')  # <-- add this
+    df_normal = df_normal.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore')
     levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
     color = ['#340A00', '#8E2800', '#DC6200', '#EFA800', '#EBE100', '#E0FD68', '#8AD58B', '#369135', '#00460C']
     value = cfg.month
@@ -387,4 +471,3 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
-
