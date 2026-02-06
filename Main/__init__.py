@@ -75,7 +75,8 @@ def execute(peta, tipe, skala, month):
         
     else:
         raise ValueError(f"Unknown peta type: {peta}")
-    
+        
+    print(f"DEBUG png_only={cfg.png_only}")
     if cfg.png_only:
         from IPython.display import display
         if peta == 'Probabilistik':
@@ -113,6 +114,7 @@ __all__ = [
     'get_normal',
     'bias_map',
 ]
+
 
 
 
