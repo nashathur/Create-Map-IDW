@@ -12,8 +12,10 @@ def upload_files():
             print("Upload prakiraan file:")
             uploaded = files.upload()
             cfg.file_prakiraan = list(uploaded.keys())[0]
+            clear_data_cache()
 
         if needs_analisis and cfg.file_analisis is None:
             print("Upload analisis file:")
             uploaded = files.upload()
             cfg.file_analisis = list(uploaded.keys())[0]
+            clear_data_cache()
