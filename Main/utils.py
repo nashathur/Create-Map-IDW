@@ -14,6 +14,7 @@ from PIL import Image
 from numba import njit, prange
 
 from .config import cfg, CACHE_DIR
+from .status import update as status_update
 
 
 # =============================================================================
@@ -76,19 +77,21 @@ def clear_data_cache():
     global _df_prakiraan_cache, _df_analisis_cache
     _df_prakiraan_cache = None
     _df_analisis_cache = None
+    status_update("Data cache cleared")
 
 
 def load_prakiraan(copy=False):
     global _df_prakiraan_cache
 
     if _df_prakiraan_cache is not None:
-        print(f"\rUsing cached prakiraan data", end="", flush=True)
+        status_update("Using cached prakiraan data")
         return _df_prakiraan_cache.copy() if copy else _df_prakiraan_cache
 
     if cfg.file_prakiraan is None:
         raise ValueError("cfg.file_prakiraan not set. Set it to the uploaded file path.")
 
     filepath = cfg.file_prakiraan
+    status_update(f"Loading prakiraan file: {filepath}")
     if filepath.endswith('.csv'):
         df_prakiraan = pd.read_csv(filepath)
     elif filepath.endswith('.xlsx') or filepath.endswith('.xls'):
@@ -97,7 +100,7 @@ def load_prakiraan(copy=False):
         raise FileNotFoundError(f"Unsupported file format: {filepath}")
 
     df_prakiraan[['LON', 'LAT']] = df_prakiraan[['LON', 'LAT']].round(2)
-    print(f"\rFile {filepath} loaded successfully", end="", flush=True)
+    status_update(f"File {filepath} loaded successfully")
 
     _df_prakiraan_cache = df_prakiraan
     return df_prakiraan.copy() if copy else df_prakiraan
@@ -107,13 +110,14 @@ def load_analisis(copy=False):
     global _df_analisis_cache
 
     if _df_analisis_cache is not None:
-        print(f"\rUsing cached analisis data", end="", flush=True)
+        status_update("Using cached analisis data")
         return _df_analisis_cache.copy() if copy else _df_analisis_cache
 
     if cfg.file_analisis is None:
         raise ValueError("cfg.file_analisis not set. Set it to the uploaded file path.")
 
     filepath = cfg.file_analisis
+    status_update(f"Loading analisis file: {filepath}")
     if filepath.endswith('.csv'):
         df_analisis = pd.read_csv(filepath)
     elif filepath.endswith('.xlsx') or filepath.endswith('.xls'):
@@ -122,7 +126,7 @@ def load_analisis(copy=False):
         raise FileNotFoundError(f"Unsupported file format: {filepath}")
 
     df_analisis[['LON', 'LAT']] = df_analisis[['LON', 'LAT']].round(2)
-    print(f"\rFile {filepath} loaded successfully", end="", flush=True)
+    status_update(f"File {filepath} loaded successfully")
 
     _df_analisis_cache = df_analisis
     return df_analisis.copy() if copy else df_analisis
@@ -273,6 +277,7 @@ def cohen_kappa(y1, y2):
     return (po - pe) / (1 - pe) if pe != 1 else 0.0
 
 def calculate_metrics(forecast_series, actual_series, contingency_table):
+    status_update("Calculating verification metrics")
     total = contingency_table.loc['All', 'All']
 
     correct = sum(contingency_table.loc[i, i] for i in contingency_table.index if i != 'All' and i in contingency_table.columns)
@@ -287,6 +292,7 @@ def calculate_metrics(forecast_series, actual_series, contingency_table):
     hits = sum(contingency_table_probabilistic.iloc[i, i] for i in range(n_categories))
     oi2 = sum(contingency_table_probabilistic.iloc[-1, i]**2 for i in range(n_categories))
     pss = (hits - pixoi) / (1 - oi2)
+    status_update("Metrics calculation complete")
     return accuracy, hss, pss
 
 
@@ -327,33 +333,31 @@ def categorize_index_vec(s):
     return np.digitize(s, bins=[0, 21, 51, 101, 151, 201, 301, 401, 501], right=False)
     
 def arrange_table():
-    print("\rLoading data", end="", flush=True)
+    status_update("Loading data for verification")
     df_prakiraan = load_prakiraan(copy=True)
     df_analisis = load_analisis(copy=True)
 
     if 'CH' in df_prakiraan.columns:
         value = 'CH'
-        print("found CH")
+        status_update("Found CH column")
     elif 'VAL' in df_prakiraan.columns:
         value = 'VAL'
-        print("found VAL")
+        status_update("Found VAL column")
     else:
         raise ValueError("Neither CH nor VAL found in the DataFrame")
     
-    print("\rProcessing dataframe", end="", flush=True)
+    status_update("Processing dataframe categories")
     df_prakiraan['CH_category'] = categorize_ch_vec(df_prakiraan[value])
     df_analisis['CH_category'] = categorize_ch_vec(df_analisis['CH'])
     df_prakiraan['index'] = categorize_index_vec(df_prakiraan[value])
     df_analisis['index'] = categorize_index_vec(df_analisis['CH'])
 
+    status_update("Merging forecast and analysis data")
     merged_df = pd.merge(df_prakiraan, df_analisis, on=['LON', 'LAT'], suffixes=('_forecast', '_analysis'))
 
     merged_df['exact_match'] = (merged_df['CH_category_forecast'] == merged_df['CH_category_analysis']).astype(int)
     merged_df['exact_index'] = (merged_df['index_forecast'] == merged_df['index_analysis']).astype(int)
     merged_df['relaxed_index'] = ((merged_df['index_forecast'] - merged_df['index_analysis']).abs() <= 1).astype(int)
-    print("\rDataframe done", end="", flush=True)
+    status_update("Dataframe processing complete")
 
     return df_prakiraan, df_analisis, merged_df
-
-
-
