@@ -4,6 +4,8 @@ def upload_files():
     from google.colab import files
     from .config import cfg
     from .utils import clear_data_cache
+    cfg.file_prakiraan = None
+    cfg.file_analisis = None
     clear_data_cache()
     for peta in cfg.jenis_peta:
         needs_prakiraan = peta in ['Prakiraan', 'Probabilistik', 'Verifikasi', 'Bias']
