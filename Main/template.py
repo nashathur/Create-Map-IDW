@@ -43,6 +43,26 @@ def image_template():
     except KeyError:
         raise ValueError("Invalid combination of peta, skala, and tipe")
 
+def _get_scaled_font(text, font_path_str, max_width, min_size=24, max_size=40):
+    """Continuously scale font size to fit text within max_width."""
+    size = max_size
+    font = ImageFont.truetype(font_path_str, size=size)
+    text_width = font.getbbox(text)[2] - font.getbbox(text)[0]
+    
+    if text_width <= max_width:
+        return font
+    
+    # Linear estimate then clamp
+    size = int(size * max_width / text_width)
+    size = max(min_size, min(size, max_size))
+    font = ImageFont.truetype(font_path_str, size=size)
+    
+    # Fine-tune downward if still too wide
+    while font.getbbox(text)[2] - font.getbbox(text)[0] > max_width and size > min_size:
+        size -= 1
+        font = ImageFont.truetype(font_path_str, size=size)
+    
+    return font
 
 def _draw_hth_text(draw, plot_data, text_x):
     """Draw HTH-specific title text on the right panel."""
@@ -117,9 +137,13 @@ def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
 
     font_title = ImageFont.truetype(font_path('bold'), size=52)
     font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
-    font_wilayah_large = ImageFont.truetype(font_path('bold'), size=40)
-    font_wilayah_small = ImageFont.truetype(font_path('bold'), size=36)
-    font_versi = ImageFont.truetype(font_path('regular'), size=32)
+    
+    PANEL_WIDTH = 996
+    TEXT_PADDING = 80  # 40px each side
+    font_wilayah = _get_scaled_font(
+        subtitle_wilayah, font_path('bold'),
+        max_width=PANEL_WIDTH - TEXT_PADDING,
+        min_size=24, max_size=40)
 
     font_wilayah = font_wilayah_small if len(subtitle_wilayah) > 41 else font_wilayah_large
 
@@ -298,3 +322,4 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
