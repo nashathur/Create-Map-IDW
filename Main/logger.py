@@ -8,7 +8,7 @@ import io
 import base64
 import requests
 from datetime import datetime
-from .utils import status_update
+from .status import update as status_update
 
 REPO = "nashathur/Create-Map-IDW"
 FILE_PATH = "execution_log.csv"
