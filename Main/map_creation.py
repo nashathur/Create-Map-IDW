@@ -205,7 +205,7 @@ def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=N
     _setup_extent(ax, ctx['bounds'])
     _add_kabupaten_labels(ax, ctx['shp_main'])
 
-    if ctx['others_shp'] is not None and len(ctx['others_shp']) > 0:
+    if ctx['others_shp'] is not None and len(ctx['others_shp']) > 0 and not cfg.png_only:
         ctx['others_shp'].plot(ax=ax, facecolor='0.8', edgecolor='k', zorder=1)
 
     if cfg.hgt:
@@ -427,6 +427,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
