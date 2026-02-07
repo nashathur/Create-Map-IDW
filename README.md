@@ -11,48 +11,49 @@ pip install git+https://github.com/nashathur/Create-Map-IDW.git
 ## Usage in Google Colab
 
 ```python
-!pip install git+https://github.com/nashathur/Create-Map-IDW.git
+from IPython.display import clear_output
+try:
+    from Main import cfg, execute, upload_files
+except ImportError:
+    !pip install git+https://github.com/nashathur/Create-Map-IDW.git -q
+    clear_output()
+    from Main import cfg, execute, upload_files
 
-from google.colab import files
-from staklim import cfg, execute
-
+# SEKARANG BISA PROCESS HTH !!!
+# step-stepnya:
+#   1. atur settingan berikut
+#   2. klik Run all atau tombol play
+#   3. tunggu sebentar persiapan file dan script
+#   4. upload file dengan klik 'Browse' di bawah (jika peta verifikasi: tunggu 'Browse' upload file kedua)
+#   5. tunggu proses berjalan
+#   *untuk HTH, upload file draft HTH ArcGIS (yang penting ada kolom bujur, lintang, indeks HTH)
 # Configuration
-cfg.jenis_peta = ['Prakiraan']
-cfg.tipe_peta = ['Curah Hujan']
-cfg.skala_peta = ['Dasarian']
-cfg.year = 2026
-cfg.months = [1]
-cfg.wilayah = "Papua Barat Daya"
-cfg.dasarian = 3
-cfg.year_ver = 2025
-cfg.month_ver = 12
+cfg.jenis_peta = 'HTH'         # Pilihan: Prakiraan, Analisis, Verifikasi, Probabilistik, Normal, Bias, HTH (jangan lupa diberi tanda petik "")
+cfg.tipe_peta  = ['Curah Hujan']     # 'Curah Hujan', 'Sifat Hujan'   (((bisa pilih dua-duanya, pisahkan dengan koma)))
+cfg.skala_peta = "Bulanan"           # 'Bulanan', 'Dasarian'
+cfg.wilayah    = "Papua Barat, Papua Barat Daya"
+# > ((bisa kabupaten atau provinsi dan lebih dari satu, pisahkan dengan koma)) *diganti sesuai nama provinsi yang diinginkan (contoh jika dipilih lebih dari satu prov: Jawa Timur, Bali)
+
+# settingan untuk judul dan waktu (title)
+cfg.year     = 2026
+cfg.month    = 2                     # bulan 1-12
+cfg.dasarian = 3                     # dasarian 1-3
+
+# settingan untuk versi / update date (subtitle)
+cfg.year_ver     = 2026
+cfg.month_ver    = 2
 cfg.dasarian_ver = 2
-cfg.hgt = True
 
-# Upload file
-print("Upload prakiraan file:")
-uploaded = files.upload()
-cfg.file_prakiraan = list(uploaded.keys())[0]
+# layer laut
+cfg.hgt = True      # (True / False)
 
-# Execute
-for peta in cfg.jenis_peta:
-    for tipe in cfg.tipe_peta:
-        for skala in cfg.skala_peta:
-            for month in cfg.months:
-                execute(peta, tipe, skala, month)
+# cuma png (no laut, no legend, no background) HARUS DOWNLOAD ('Save Image As...') DULU, supaya background transparant
+cfg.png_only = False  # (True / False)
+
+# upload file (tunggu beberapa saat untuk upload file, klik 'Browse')
+upload_files()
+
+for tipe in cfg.tipe_peta:
+    clear_output()
+    execute(cfg.jenis_peta, tipe, cfg.skala_peta, cfg.month)
 ```
-
-## Configuration Options
-
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `jenis_peta` | Map types | `['Prakiraan', 'Analisis', 'Verifikasi', 'Probabilistik']` |
-| `tipe_peta` | Data types | `['Curah Hujan', 'Sifat Hujan']` |
-| `skala_peta` | Time scale | `['Bulanan', 'Dasarian']` |
-| `year` | Forecast year | `2026` |
-| `months` | Months to process | `[1, 2, 3]` |
-| `wilayah` | Region name | `"Papua Barat Daya"` |
-| `dasarian` | Dasarian period (1-3) | `3` |
-| `hgt` | Show ocean depth layer | `True` |
-| `file_prakiraan` | Path to forecast data file | Set after upload |
-| `file_analisis` | Path to analysis data file | Set after upload |
