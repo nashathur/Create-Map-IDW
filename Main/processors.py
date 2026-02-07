@@ -21,6 +21,7 @@ from .utils import (
 )
 from .map_creation import create_map
 from .status import update as status_update
+from .map_creation import create_map, create_scatter_map
 
 
 # =============================================================================
@@ -241,20 +242,20 @@ def get_pch_prob():
 # HTH
 # =============================================================================
 
+# Replace get_hth():
 def get_hth():
     status_update("Processing HTH")
     df_hth = load_hth()
 
     hth_colors = {
-        0: '#2E8B57',   # Masih Ada Hujan            - Dark green
-        1: '#90EE90',   # Sangat Pendek (1-5 days)   - Light green
-        2: '#FFD700',   # Pendek (6-10 days)          - Yellow
-        3: '#FF8C00',   # Menengah (11-20 days)       - Orange
-        4: '#8B4513',   # Panjang (21-30 days)        - Brown
-        5: '#FFB6C1',   # Sangat Panjang (31-60 days) - Pink
-        6: '#FF0000',   # Kekeringan Ekstrim (>60)    - Red
+        0: '#2E8B57',
+        1: '#90EE90',
+        2: '#FFD700',
+        3: '#FF8C00',
+        4: '#8B4513',
+        5: '#FFB6C1',
+        6: '#FF0000',
     }
-    marker_size = 300
 
     info = (
         cfg.year, cfg.month,
@@ -264,14 +265,9 @@ def get_hth():
         cfg.dasarian_ver,
         cfg.wilayah,
     )
-    jenis = 'HTH'
-    value = 'INDEKS_HTH'
 
-    status_update(f"Creating {jenis} Map")
-    plot_data = create_map(
-        df_hth, value, jenis, hth_colors, None, info,
-        plot_mode='scatter', scatter_size=marker_size
-    )
+    status_update("Creating HTH Map")
+    plot_data = create_scatter_map(df_hth, 'INDEKS_HTH', 'HTH', hth_colors, info)
     return plot_data
 
 
@@ -471,5 +467,6 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
 
 
