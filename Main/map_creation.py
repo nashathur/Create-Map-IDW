@@ -276,6 +276,8 @@ def _get_fine_grid(shp_main, shp_crs):
 
 
 def _interpolate_regular_grid(lon_pts, lat_pts, values, x_grid, y_grid, method='linear'):
+    from scipy.ndimage import distance_transform_edt
+
     unique_lon = np.sort(np.unique(lon_pts))
     unique_lat = np.sort(np.unique(lat_pts))
 
@@ -283,6 +285,12 @@ def _interpolate_regular_grid(lon_pts, lat_pts, values, x_grid, y_grid, method='
     lon_idx = np.searchsorted(unique_lon, lon_pts)
     lat_idx = np.searchsorted(unique_lat, lat_pts)
     grid_values[lat_idx, lon_idx] = values
+
+    # Fill NaN cells (ocean/missing) with nearest valid value
+    mask = np.isnan(grid_values)
+    if mask.any():
+        ind = distance_transform_edt(mask, return_distances=False, return_indices=True)
+        grid_values = grid_values[tuple(ind)]
 
     interpolator = RegularGridInterpolator(
         (unique_lat, unique_lon), grid_values,
@@ -292,7 +300,6 @@ def _interpolate_regular_grid(lon_pts, lat_pts, values, x_grid, y_grid, method='
     grid_lat_fine, grid_lon_fine = np.meshgrid(y_grid, x_grid, indexing='ij')
     query = np.column_stack((grid_lat_fine.ravel(), grid_lon_fine.ravel()))
     return interpolator(query).reshape(grid_lat_fine.shape)
-
 
 def clear_spatial_cache():
     global _grid_cache
@@ -420,6 +427,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
