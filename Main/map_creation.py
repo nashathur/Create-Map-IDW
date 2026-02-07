@@ -166,7 +166,7 @@ def _save_plot_to_image(fig, dpi=200):
 _spatial_cache = {}
 
 
-def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=6):
+def _get_spatial(shp_main, shp_crs, lon, lat, n_neighbors=24):
     """Cache grid, tree, query results, and clip geometry for a given spatial extent + point set."""
     bounds = tuple(shp_main.total_bounds)
     pts_hash = (lon.tobytes(), lat.tobytes())
@@ -416,4 +416,5 @@ def create_map(df, value, jenis, color, levels, info, plot_mode='idw', scatter_s
         del clipped_data, idw
     status_update("Map creation complete")
     return plot_data
+
 
