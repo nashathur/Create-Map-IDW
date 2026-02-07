@@ -395,11 +395,11 @@ def create_scatter_map(df, value, jenis, colors, info):
 
     scatter_sizes = {
         1: 300,
-        2: 300,
-        3: 300,
-        4: 300,
-        5: 300,
-        6: 300,
+        2: 450,
+        3: 500,
+        4: 500,
+        5: 500,
+        6: 500,
     }
 
     # ---- Plot ----
@@ -421,6 +421,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
