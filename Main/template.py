@@ -84,10 +84,10 @@ def _draw_hth_text(draw, plot_data, text_x):
     PANEL_WIDTH = 996
     TEXT_PADDING = 40
 
-    font_line1 = ImageFont.truetype(font_path('bold'), size=36)
-    font_line2 = ImageFont.truetype(font_path('bold'), size=36)
-    font_line3 = ImageFont.truetype(font_path('bold'), size=32)
-    font_line4 = _get_scaled_font(title_lines[3], font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=34)
+    font_line1 = ImageFont.truetype(font_path('bold'), size=40)
+    font_line2 = ImageFont.truetype(font_path('bold'), size=40)
+    font_line3 = ImageFont.truetype(font_path('bold'), size=36)
+    font_line4 = _get_scaled_font(title_lines[3], font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=36)
     font_update = ImageFont.truetype(font_path('bold_italic'), size=28)
 
     fonts_title = [font_line1, font_line2, font_line3, font_line4]
@@ -328,6 +328,7 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
 
