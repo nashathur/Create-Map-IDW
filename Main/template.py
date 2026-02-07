@@ -81,11 +81,16 @@ def _draw_hth_text(draw, plot_data, text_x):
     ]
     update_line = f"Update: {dasarian_romawi(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
 
-    font_title = ImageFont.truetype(font_path('bold'), size=32)
-    font_update = ImageFont.truetype(font_path('bold_italic'), size=28)
+    PANEL_WIDTH = 996
+    TEXT_PADDING = 40
 
-    text_y_start = 75
-    spacing = 45
+    # Use _get_scaled_font for slightly bigger title text
+    longest_line = max(title_lines, key=len)
+    font_title = _get_scaled_font(longest_line, font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=28, max_size=42)
+    font_update = _get_scaled_font(update_line, font_path('bold_italic'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=36)
+
+    text_y_start = 200
+    spacing = 50
 
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -100,7 +105,6 @@ def _draw_hth_text(draw, plot_data, text_x):
         text_y_start + len(title_lines) * spacing + 15,
         update_line, font_update, fill='blue'
     )
-
 
 def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
     """Draw standard map title text (Prakiraan, Analisis, etc.)."""
@@ -321,6 +325,7 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
 
