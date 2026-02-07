@@ -392,7 +392,7 @@ def create_map(df, value, jenis, color, levels, info):
 
 def create_scatter_map(df, value, jenis, colors, info):
     ctx = _prepare_map_context(df, value, jenis, info)
-    print(df_hth['INDEKS_HTH'].unique())
+    print(df[value].unique())
     scatter_sizes = {
         0: 300,
         1: 450,
@@ -420,6 +420,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
