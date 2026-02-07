@@ -10,6 +10,8 @@ from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
+import time
+from .logger import log_execution
 from .processors import (
     get_pch,
     get_psh,
@@ -31,6 +33,8 @@ __version__ = "1.0.0"
 
 def execute(peta, tipe, skala, month):
     """Execute map generation based on configuration."""
+    start_time = time.time()
+
     cfg.peta = peta
     cfg.tipe = tipe
     cfg.skala = skala
@@ -42,9 +46,7 @@ def execute(peta, tipe, skala, month):
     if peta != 'HTH':
         clear_data_cache()
     
-    
     print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
-    
     
     if peta == 'Prakiraan':
         if tipe == 'Curah Hujan':
@@ -55,7 +57,6 @@ def execute(peta, tipe, skala, month):
             plot_data = get_psh()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
-            
     elif peta == 'Analisis':
         if tipe == 'Curah Hujan':
             status_update("Getting ACH data...")
@@ -65,11 +66,9 @@ def execute(peta, tipe, skala, month):
             plot_data = get_ash()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
-            
     elif peta == 'Probabilistik':
         status_update("Getting probabilistic data...")
         plot_data = get_pch_prob()
-        
     elif peta == 'Verifikasi':
         if skala == 'Bulanan':
             status_update("Getting qualitative verification...")
@@ -77,30 +76,32 @@ def execute(peta, tipe, skala, month):
         else:
             status_update("Getting quantitative verification...")
             plot_data = get_verif_quan()
-            
     elif peta == 'Normal':
         status_update("Getting normal data...")
         plot_data = get_normal()
-        
     elif peta == 'Bias':
         status_update("Creating bias map...")
         plot_data = bias_map()
-
     elif peta == 'HTH':
         status_update("Getting HTH data...")
         plot_data = get_hth()
-        
     else:
         raise ValueError(f"Unknown peta type: {peta}")
         
     if cfg.png_only:
-        status_update(f"Completed: {plot_data.get('file_name','png_only')}")
+        output_filename = plot_data.get('file_name', 'png_only')
+        status_update(f"Completed: {output_filename}")
+        duration = time.time() - start_time
+        log_execution(cfg, output_filename, duration)
         return plot_data
     
     status_update("Overlaying image template...")
     map_data = overlay_image(plot_data)
+    output_filename = map_data['file_name']
     
-    status_update(f"Completed: {map_data['file_name']}")
+    status_update(f"Completed: {output_filename}")
+    duration = time.time() - start_time
+    log_execution(cfg, output_filename, duration)
     return map_data
     
 
@@ -129,4 +130,5 @@ __all__ = [
     'get_hth',
     'status_update',
 ]
+
 
