@@ -262,7 +262,7 @@ def dasarian_romawi(number):
     das_romawi = {1: 'I', 2: 'II', 3: 'III'}
     return das_romawi[number]
 
-def dasarian_to_date(dasarian)
+def dasarian_to_date(dasarian):
     dasarian_date = {1: '11', 2: '21', 3: '1'}
     return dasarian_date[dasarian]
 # =============================================================================
@@ -363,5 +363,6 @@ def arrange_table():
     status_update("Dataframe processing complete")
 
     return df_prakiraan, df_analisis, merged_df
+
 
 
