@@ -42,9 +42,9 @@ def execute(peta, tipe, skala, month):
     if peta != 'HTH':
         clear_data_cache()
     
-    status_update(f"{'='*60}")
-    status_update(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
-    status_update(f"{'='*60}")
+    
+    print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
+    
     
     if peta == 'Prakiraan':
         if tipe == 'Curah Hujan':
@@ -129,3 +129,4 @@ __all__ = [
     'get_hth',
     'status_update',
 ]
+
