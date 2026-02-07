@@ -79,7 +79,7 @@ def _draw_hth_text(draw, plot_data, text_x):
         "MONITORING OF CONSECUTIVE NO RAIN DAYS",
         f"PROVINSI {nama_wilayah.upper()}",
     ]
-    update_line = f"Update: {dasarian_romawi(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
+    update_line = f"Update: {dasarian_to_date(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
 
     PANEL_WIDTH = 996
     TEXT_PADDING = 40
@@ -328,6 +328,7 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
 
