@@ -416,9 +416,10 @@ def create_scatter_map(df, value, jenis, colors, info):
         if len(subset) > 0:
             ax.scatter(
                 subset.geometry.x, subset.geometry.y,
-                c=cat_color, s=scatter_sizes[cat_val],
+                c=cat_color, s=scatter_sizes.get(cat_val, 300),,
                 edgecolors='black', linewidths=0.5, zorder=5
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
