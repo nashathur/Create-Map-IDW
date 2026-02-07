@@ -8,6 +8,7 @@ import io
 import base64
 import requests
 from datetime import datetime
+from .utils import status_update
 
 REPO = "nashathur/Create-Map-IDW"
 FILE_PATH = "execution_log.csv"
@@ -104,6 +105,4 @@ def log_execution(cfg, output_filename, duration):
 
     put_resp = requests.put(API_URL, headers=headers, json=payload)
     if put_resp.status_code in (200, 201):
-        print("Log saved to GitHub.")
-    else:
-        print(f"Failed to save log: {put_resp.status_code} {put_resp.text}")
+        status_update(f"Log saved.")
