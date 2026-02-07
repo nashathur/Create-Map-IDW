@@ -270,7 +270,7 @@ def overlay_image(plot_data):
     draw = ImageDraw.Draw(new_image)
 
     if peta == 'HTH':
-        text_x = 2940
+        text_x = 2960
         _draw_hth_text(draw, {
             'year': year, 'month': month,
             'dasarian_ver': dasarian_ver, 'month_ver': month_ver, 'year_ver': year_ver,
@@ -328,6 +328,7 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
 
