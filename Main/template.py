@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .config import cfg, CACHE_DIR
 from .static import font_path
-from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi
+from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi, dasarian_to_date
 from .status import update as status_update
 
 
@@ -328,6 +328,7 @@ def overlay_image(plot_data):
         map_data['pss'] = pss
     status_update("Overlay complete")
     return map_data
+
 
 
 
