@@ -312,7 +312,7 @@ def create_map(df, value, jenis, color, levels, info):
     Discrete fields (<=10 unique values) always use 'nearest'.
     """
     ctx = _prepare_map_context(df, value, jenis, info)
-
+    
     # ---- Interpolation ----
     lon_full = ctx['gdf'].geometry.x.to_numpy()
     lat_full = ctx['gdf'].geometry.y.to_numpy()
@@ -392,16 +392,15 @@ def create_map(df, value, jenis, color, levels, info):
 
 def create_scatter_map(df, value, jenis, colors, info):
     ctx = _prepare_map_context(df, value, jenis, info)
-
+    print(df_hth['INDEKS_HTH'].unique())
     scatter_sizes = {
-        1: 300,
-        2: 450,
+        0: 300,
+        1: 450,
+        2: 500,
         3: 500,
         4: 500,
         5: 500,
-        6: 500,
     }
-
     # ---- Plot ----
     status_update("Creating scatter plot")
     fig, ax = _setup_figure()
@@ -421,6 +420,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
