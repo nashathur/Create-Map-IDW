@@ -1,109 +1,133 @@
-# logger.py
+# __init__.py
 """
-Execution logger — appends a record to execution_log.csv in the GitHub repo.
+Create-Map-IDW - Weather Map Generation Package for BMKG
 """
 
-import csv
-import io
-import base64
-import requests
-from datetime import datetime
+from .config import cfg, CACHE_DIR
+from .static import download_static_files, clear_basemap_cache
+from .utils import load_prakiraan, load_analisis, clear_data_cache
+from .map_creation import create_map, clear_spatial_cache
+from .template import overlay_image
+from .upload import upload_files
+from .status import update as status_update
+import time
+from .logger import log_execution
+from .processors import (
+    get_pch,
+    get_psh,
+    get_ach,
+    get_ash,
+    get_pch_prob,
+    get_verif_quan,
+    get_verif_qual,
+    get_normal,
+    bias_map,
+    get_hth,
+    load_hth,
+)
 
-REPO = "nashathur/Create-Map-IDW"
-FILE_PATH = "execution_log.csv"
-BRANCH = "main"
-API_URL = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+download_static_files()
 
-FIELDNAMES = [
-    "timestamp",
-    "jenis_peta",
-    "tipe_peta",
-    "skala_peta",
-    "wilayah",
-    "year",
-    "month",
-    "dasarian",
-    "year_ver",
-    "month_ver",
-    "dasarian_ver",
-    "png_only",
-    "hgt",
-    "output_file",
-    "duration_seconds",
+__version__ = "1.0.0"
+
+
+def execute(peta, tipe, skala, month):
+    """Execute map generation based on configuration."""
+    start_time = time.time()
+
+    cfg.peta = peta
+    cfg.tipe = tipe
+    cfg.skala = skala
+    cfg.month = month
+
+    if cfg.png_only:
+        cfg.hgt = False
+        
+    if peta != 'HTH':
+        clear_data_cache()
+    
+    print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
+    
+    if peta == 'Prakiraan':
+        if tipe == 'Curah Hujan':
+            status_update("Getting PCH data...")
+            plot_data = get_pch()
+        elif tipe == 'Sifat Hujan':
+            status_update("Getting PSH data...")
+            plot_data = get_psh()
+        else:
+            raise ValueError(f"Unknown tipe: {tipe}")
+    elif peta == 'Analisis':
+        if tipe == 'Curah Hujan':
+            status_update("Getting ACH data...")
+            plot_data = get_ach()
+        elif tipe == 'Sifat Hujan':
+            status_update("Getting ASH data...")
+            plot_data = get_ash()
+        else:
+            raise ValueError(f"Unknown tipe: {tipe}")
+    elif peta == 'Probabilistik':
+        status_update("Getting probabilistic data...")
+        plot_data = get_pch_prob()
+    elif peta == 'Verifikasi':
+        if skala == 'Bulanan':
+            status_update("Getting qualitative verification...")
+            plot_data = get_verif_qual()
+        else:
+            status_update("Getting quantitative verification...")
+            plot_data = get_verif_quan()
+    elif peta == 'Normal':
+        status_update("Getting normal data...")
+        plot_data = get_normal()
+    elif peta == 'Bias':
+        status_update("Creating bias map...")
+        plot_data = bias_map()
+    elif peta == 'HTH':
+        status_update("Getting HTH data...")
+        plot_data = get_hth()
+    else:
+        raise ValueError(f"Unknown peta type: {peta}")
+        
+    if cfg.png_only:
+        output_filename = plot_data.get('file_name', 'png_only')
+        status_update(f"Completed: {output_filename}")
+        duration = time.time() - start_time
+        log_execution(cfg, output_filename, duration)
+        return plot_data
+    
+    status_update("Overlaying image template...")
+    map_data = overlay_image(plot_data)
+    output_filename = map_data['file_name']
+    
+    status_update(f"Completed: {output_filename}")
+    duration = time.time() - start_time
+    log_execution(cfg, output_filename, duration)
+    return map_data
+    
+
+
+__all__ = [
+    'cfg',
+    'CACHE_DIR',
+    'download_static_files',
+    'clear_basemap_cache',
+    'clear_data_cache',
+    'load_prakiraan',
+    'load_analisis',
+    'load_hth',
+    'create_map',
+    'overlay_image',
+    'execute',
+    'get_pch',
+    'get_psh',
+    'get_ach',
+    'get_ash',
+    'get_pch_prob',
+    'get_verif_quan',
+    'get_verif_qual',
+    'get_normal',
+    'bias_map',
+    'get_hth',
+    'status_update',
 ]
 
-
-def _get_token():
-    try:
-        from google.colab import userdata
-        return userdata.get('GITHUB_TOKEN')
-    except Exception:
-        return None
-
-
-def log_execution(cfg, output_filename, duration):
-    token = _get_token()
-    if not token:
-        print("GITHUB_TOKEN not found in Colab Secrets. Skipping log.")
-        return
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-    }
-
-    # build new row
-    row = {
-        "timestamp": datetime.now().isoformat(),
-        "jenis_peta": cfg.peta,
-        "tipe_peta": cfg.tipe,
-        "skala_peta": cfg.skala,
-        "wilayah": cfg.wilayah,
-        "year": cfg.year,
-        "month": cfg.month,
-        "dasarian": cfg.dasarian,
-        "year_ver": cfg.year_ver,
-        "month_ver": cfg.month_ver,
-        "dasarian_ver": cfg.dasarian_ver,
-        "png_only": cfg.png_only,
-        "hgt": cfg.hgt,
-        "output_file": output_filename,
-        "duration_seconds": round(duration, 2),
-    }
-
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=FIELDNAMES)
-
-    # try to fetch existing file
-    sha = None
-    resp = requests.get(API_URL, headers=headers, params={"ref": BRANCH})
-
-    if resp.status_code == 200:
-        # file exists — decode existing content, append
-        file_data = resp.json()
-        sha = file_data["sha"]
-        existing = base64.b64decode(file_data["content"]).decode("utf-8")
-        buf.write(existing)
-        if not existing.endswith("\n"):
-            buf.write("\n")
-        writer.writerow(row)
-    else:
-        # file doesn't exist — write header + first row
-        writer.writeheader()
-        writer.writerow(row)
-
-    # commit
-    new_content = base64.b64encode(buf.getvalue().encode("utf-8")).decode("utf-8")
-    payload = {
-        "message": f"log: {cfg.peta} - {cfg.tipe} - {cfg.skala} ({datetime.now().strftime('%Y-%m-%d %H:%M')})",
-        "content": new_content,
-        "branch": BRANCH,
-    }
-    if sha:
-        payload["sha"] = sha
-
-    put_resp = requests.put(API_URL, headers=headers, json=payload)
-    if put_resp.status_code in (200, 201):
-        print("Log saved to GitHub.")
-    else:
-        print(f"Failed to save log: {put_resp.status_code} {put_resp.text}")
