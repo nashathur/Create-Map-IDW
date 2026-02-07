@@ -400,7 +400,25 @@ def create_scatter_map(df, value, jenis, colors, info):
         Mapping {category_value: hex_color}.
     """
     ctx = _prepare_map_context(df, value, jenis, info)
-    scatter_size = 300
+    # With this:
+    scatter_sizes = {
+        1: 300,
+        2: 300,
+        3: 300,
+        4: 300,
+        5: 300,
+        6: 300,
+    }
+    
+    # Then replace the scatter loop:
+    for cat_val, cat_color in colors.items():
+        subset = clipped_gdf[clipped_gdf[value] == cat_val]
+        if len(subset) > 0:
+            ax.scatter(
+                subset.geometry.x, subset.geometry.y,
+                c=cat_color, s=scatter_sizes[cat_val],
+                edgecolors='black', linewidths=0.5, zorder=5
+            )
 
     # ---- Plot ----
     status_update("Creating scatter plot")
@@ -421,3 +439,4 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
