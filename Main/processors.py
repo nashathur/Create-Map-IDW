@@ -275,16 +275,26 @@ def get_hth():
 # VERIFIKASI
 # =============================================================================
 
-def get_verif_quan():
-    status_update("Processing Verifikasi Kuantitatif")
+def get_verif():
+    status_update("Processing Verifikasi")
     df_prakiraan, df_analisis, merged_df = arrange_table()
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
     basemaps = get_basemap(cfg.wilayah)
     shp_main = basemaps['shp_main']
     shp_crs = basemaps['crs']
-
     status_update("Basemap loaded")
+
+    if cfg.verif_mode == 'kuantitatif':
+        cat_col = 'index'
+        all_categories = list(range(1, 10))
+        value = 'exact_index'
+        jenis = 'VERquan'
+    else:
+        cat_col = 'CH_category'
+        all_categories = list(range(1, 5))
+        value = 'exact_match'
+        jenis = 'VERqual'
 
     gdf_prakiraan = gpd.GeoDataFrame(df_prakiraan, geometry=gpd.points_from_xy(df_prakiraan.LON, df_prakiraan.LAT), crs=shp_crs)
     clipped_df_prakiraan = gpd.clip(gdf_prakiraan, shp_main)
@@ -296,17 +306,14 @@ def get_verif_quan():
     clipped_merged_df = gpd.clip(gdf_merged, shp_main)
 
     status_update("Building contingency table")
-    all_categories = list(range(1, 10))
-    contingency_quan = pd.crosstab(clipped_df_prakiraan['index'], clipped_df_analisis['index'], dropna=False, margins=True)
-    contingency_quan = contingency_quan.reindex(index=all_categories + ['All'], columns=all_categories + ['All'], fill_value=0)
-    
+    contingency = pd.crosstab(clipped_df_prakiraan[cat_col], clipped_df_analisis[cat_col], dropna=False, margins=True)
+    contingency = contingency.reindex(index=all_categories + ['All'], columns=all_categories + ['All'], fill_value=0)
+
     color = ['white', 'dodgerblue']
     levels = [0, 1]
-    value = 'exact_index'
-    jenis = 'VERquan'
 
     status_update("Calculating metrics")
-    accuracy, hss, pss = calculate_metrics(clipped_df_prakiraan['index'], clipped_df_analisis['index'], contingency_quan)
+    accuracy, hss, pss = calculate_metrics(clipped_df_prakiraan[cat_col], clipped_df_analisis[cat_col], contingency)
 
     status_update("Creating verification map")
     plot_data = create_map(clipped_merged_df, value, jenis, color, levels, info)
@@ -344,79 +351,10 @@ def get_verif_quan():
     plot_data['accuracy'] = accuracy
     plot_data['hss'] = hss
     plot_data['pss'] = pss
-    plt.close(fig)
 
-    return plot_data
+    if not cfg.png_only:
+        plt.close(fig)
 
-
-def get_verif_qual():
-    status_update("Processing Verifikasi Kualitatif")
-    df_prakiraan, df_analisis, merged_df = arrange_table()
-    info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
-    basemaps = get_basemap(cfg.wilayah)
-    shp_main = basemaps['shp_main']
-    shp_crs = basemaps['crs']
-    status_update("Basemap loaded")
-
-    gdf_prakiraan = gpd.GeoDataFrame(df_prakiraan, geometry=gpd.points_from_xy(df_prakiraan.LON, df_prakiraan.LAT), crs=shp_crs)
-    clipped_df_prakiraan = gpd.clip(gdf_prakiraan, shp_main)
-
-    gdf_analisis = gpd.GeoDataFrame(df_analisis, geometry=gpd.points_from_xy(df_analisis.LON, df_analisis.LAT), crs=shp_crs)
-    clipped_df_analisis = gpd.clip(gdf_analisis, shp_main)
-
-    gdf_merged = gpd.GeoDataFrame(merged_df, geometry=gpd.points_from_xy(merged_df.LON, merged_df.LAT), crs=shp_crs)
-    clipped_merged_df = gpd.clip(gdf_merged, shp_main)
-
-    status_update("Building contingency table")
-    all_categories = list(range(1, 5))
-    contingency_qual = pd.crosstab(clipped_df_prakiraan['CH_category'], clipped_df_analisis['CH_category'], margins=True)
-    contingency_qual = contingency_qual.reindex(index=all_categories + ['All'], columns=all_categories + ['All'], fill_value=0)
-    
-    color = ['white', 'dodgerblue']
-    levels = [0, 1]
-    value = 'exact_match'
-    jenis = 'VERqual'
-
-    status_update("Calculating metrics")
-    accuracy, hss, pss = calculate_metrics(clipped_df_prakiraan['CH_category'], clipped_df_analisis['CH_category'], contingency_qual)
-    
-    status_update("Creating verification map")
-    plot_data = create_map(clipped_merged_df, value, jenis, color, levels, info)
-    
-    del df_prakiraan, df_analisis, merged_df, gdf_prakiraan, gdf_analisis, gdf_merged, clipped_df_prakiraan, clipped_df_analisis, clipped_merged_df
-    
-    fig = plot_data['fig']
-    ax = plot_data['ax']
-
-    minx, maxx = ax.get_xlim()
-    miny, maxy = ax.get_ylim()
-    x_pos = maxx - (maxx - minx) * 0.95
-    width = maxx - minx
-    height = maxy - miny
-    space = height * 0.027344
-
-    bottom_space = miny + (height * 0.05)
-    middle_space = bottom_space + space
-    top_space = middle_space + space
-
-    status_update("Adding metrics to plot")
-    ax.text(x_pos, top_space, f"Akurasi (PC): {((accuracy)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='bold', zorder=11)
-    ax.text(x_pos, middle_space, f"HSS: {((hss)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='normal', zorder=11)
-    ax.text(x_pos, bottom_space, f"PSS: {((pss)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='normal', zorder=11)
-
-    rect_x = x_pos - (space * 0.5)
-    rect_y = bottom_space - (space * 0.75)
-    ax.add_patch(Rectangle((rect_x, rect_y), width * 0.248582, height * 0.098, edgecolor='black', facecolor='white', fill=True, lw=4, zorder=10))
-
-    status_update("Saving verification plot")
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=100, transparent=True, bbox_inches='tight')
-    buf.seek(0)
-    plot_data['image'] = load_image_to_memory(buf)
-    plot_data['accuracy'] = accuracy
-    plot_data['hss'] = hss
-    plot_data['pss'] = pss
-    plt.close(fig)
     return plot_data
 
 
@@ -467,6 +405,7 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
 
 
 
