@@ -70,12 +70,8 @@ def execute(peta, tipe, skala, month):
         status_update("Getting probabilistic data...")
         plot_data = get_pch_prob()
     elif peta == 'Verifikasi':
-        if skala == 'Bulanan':
-            status_update("Getting qualitative verification...")
-            plot_data = get_verif_qual()
-        else:
-            status_update("Getting quantitative verification...")
-            plot_data = get_verif_quan()
+        status_update("Getting verifikasi data...")
+        plot_data = get_verif()
     elif peta == 'Normal':
         status_update("Getting normal data...")
         plot_data = get_normal()
@@ -130,4 +126,5 @@ __all__ = [
     'get_hth',
     'status_update',
 ]
+
 
