@@ -119,12 +119,12 @@ __all__ = [
     'get_ach',
     'get_ash',
     'get_pch_prob',
-    'get_verif_quan',
-    'get_verif_qual',
+    'get_verif',
     'get_normal',
     'bias_map',
     'get_hth',
     'status_update',
 ]
+
 
 
