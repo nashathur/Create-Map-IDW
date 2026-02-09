@@ -84,7 +84,7 @@ def execute(peta, tipe, skala, month):
     else:
         raise ValueError(f"Unknown peta type: {peta}")
         
-     if cfg.png_only:
+    if cfg.png_only:
         output_filename = plot_data.get('file_name', 'png_only')
         status_update(f"Completed: {output_filename}")
         duration = time.time() - start_time
@@ -125,6 +125,7 @@ __all__ = [
     'get_hth',
     'status_update',
 ]
+
 
 
 
