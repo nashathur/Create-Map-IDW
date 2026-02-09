@@ -439,3 +439,4 @@ def create_scatter_map(df, value, jenis, colors, info):
 
 
 
+
