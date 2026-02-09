@@ -338,9 +338,7 @@ def create_map(df, value, jenis, color, levels, info):
         lon_full, lat_full, values_full.astype(np.float32),
         fine['x_grid'], fine['y_grid'], method=method
     )
-    if not is_discrete:
-        interpolated = gaussian_filter(interpolated, sigma=3)
-        
+    
     data_array = fine['template'].copy(data=interpolated)
     data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
     clipped_data = data_array.rio.clip(ctx['shp_main'].geometry)
@@ -429,6 +427,7 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+
 
 
 
