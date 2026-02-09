@@ -18,8 +18,7 @@ from .processors import (
     get_ach,
     get_ash,
     get_pch_prob,
-    get_verif_quan,
-    get_verif_qual,
+    get_verif,
     get_normal,
     bias_map,
     get_hth,
@@ -125,6 +124,7 @@ __all__ = [
     'get_hth',
     'status_update',
 ]
+
 
 
 
