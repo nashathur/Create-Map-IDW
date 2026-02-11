@@ -286,39 +286,35 @@ def get_verif():
     status_update("Basemap loaded")
 
     if cfg.verif_mode == 'kuantitatif':
-        cat_col = 'index'
+        col_forecast = 'index_forecast'
+        col_analysis = 'index_analysis'
         all_categories = list(range(1, 10))
         value = 'exact_index'
         jenis = 'VERquan'
     else:
-        cat_col = 'CH_category'
+        col_forecast = 'CH_category_forecast'
+        col_analysis = 'CH_category_analysis'
         all_categories = list(range(1, 5))
         value = 'exact_match'
         jenis = 'VERqual'
-
-    gdf_prakiraan = gpd.GeoDataFrame(df_prakiraan, geometry=gpd.points_from_xy(df_prakiraan.LON, df_prakiraan.LAT), crs=shp_crs)
-    clipped_df_prakiraan = gpd.clip(gdf_prakiraan, shp_main)
-
-    gdf_analisis = gpd.GeoDataFrame(df_analisis, geometry=gpd.points_from_xy(df_analisis.LON, df_analisis.LAT), crs=shp_crs)
-    clipped_df_analisis = gpd.clip(gdf_analisis, shp_main)
 
     gdf_merged = gpd.GeoDataFrame(merged_df, geometry=gpd.points_from_xy(merged_df.LON, merged_df.LAT), crs=shp_crs)
     clipped_merged_df = gpd.clip(gdf_merged, shp_main)
 
     status_update("Building contingency table")
-    contingency = pd.crosstab(clipped_df_prakiraan[cat_col], clipped_df_analisis[cat_col], dropna=False, margins=True)
+    contingency = pd.crosstab(clipped_merged_df[col_forecast], clipped_merged_df[col_analysis], dropna=False, margins=True)
     contingency = contingency.reindex(index=all_categories + ['All'], columns=all_categories + ['All'], fill_value=0)
 
     color = ['white', 'dodgerblue']
     levels = [0, 1]
 
     status_update("Calculating metrics")
-    accuracy, hss, pss = calculate_metrics(clipped_df_prakiraan[cat_col], clipped_df_analisis[cat_col], contingency)
+    accuracy, hss, pss = calculate_metrics(clipped_merged_df[col_forecast], clipped_merged_df[col_analysis], contingency)
 
     status_update("Creating verification map")
     plot_data = create_map(clipped_merged_df, value, jenis, color, levels, info)
 
-    del df_prakiraan, df_analisis, merged_df, gdf_prakiraan, gdf_analisis, gdf_merged, clipped_df_prakiraan, clipped_df_analisis, clipped_merged_df
+    del df_prakiraan, df_analisis, merged_df, gdf_merged, clipped_merged_df
 
     fig = plot_data['fig']
     ax = plot_data['ax']
@@ -356,7 +352,6 @@ def get_verif():
         plt.close(fig)
 
     return plot_data
-
 
 # =============================================================================
 # NORMAL & BIAS
@@ -405,6 +400,7 @@ def bias_map():
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
     return plot_data
+
 
 
 
