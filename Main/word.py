@@ -23,7 +23,13 @@ def arrange_word(map_data):
         str: Output file path on success, None on failure.
     """
     try:
-        from docxtpl import DocxTemplate, InlineImage
+        try:
+            from docxtpl import DocxTemplate, InlineImage
+        except ImportError:
+            import subprocess
+            status_update("Installing docxtpl...")
+            subprocess.check_call(['pip', 'install', 'docxtpl', '-q'])
+            from docxtpl import DocxTemplate, InlineImage
         from docx.shared import Cm
         from google.colab import files
 
