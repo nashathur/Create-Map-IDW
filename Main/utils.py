@@ -311,6 +311,9 @@ def count_points(data, value, levels):
     elif cfg.tipe == 'Sifat Hujan':
         bins = [0, 85, 115, np.inf]
         labels = ['Bawah Normal', 'Normal', 'Atas Normal']
+    elif cfg.peta == 'Verifikasi':
+        bins = [0, 1, np.inf]
+        labels = ['Tidak Sesuai', 'Sesuai']
     else:
         bins = levels + [np.inf]
         labels = [f"{levels[i]}-{levels[i+1]}" for i in range(len(levels)-1)] + [f">={levels[-1]}"]
