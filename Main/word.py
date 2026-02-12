@@ -6,9 +6,6 @@ Word document generation from map data using docxtpl templates.
 import os
 import io
 
-from docxtpl import DocxTemplate, InlineImage
-from docx.shared import Inches, Cm
-
 from .config import cfg, CACHE_DIR
 from .utils import number_to_bulan, dasarian_romawi
 from .status import update as status_update
@@ -26,6 +23,8 @@ def arrange_word(map_data):
         str: Output file path on success, None on failure.
     """
     try:
+        from docxtpl import DocxTemplate, InlineImage
+        from docx.shared import Cm
         from google.colab import files
 
         status_update("Generating Word document...")
