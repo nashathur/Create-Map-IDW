@@ -11,6 +11,7 @@ from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
 from .narasi import get_analysis
+from .word import arrange_word
 import time
 from .logger import log_execution
 from .processors import (
@@ -98,6 +99,10 @@ def execute(peta, tipe, skala, month):
     status_update(f"Completed: {output_filename}")
     duration = time.time() - start_time
     log_execution(cfg, output_filename, duration)
+
+    if cfg.create_word:
+        arrange_word(map_data)
+
     return map_data
     
 
@@ -125,6 +130,7 @@ __all__ = [
     'get_hth',
     'status_update',
     'get_analysis',
+    'arrange_word',
 ]
 
 

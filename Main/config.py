@@ -36,6 +36,7 @@ class cfg:
     month = None
 
     png_only = False
+    create_word = False
     verif_mode = 'kuantitatif'    #kuantitatif or kualitatif
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
@@ -52,6 +53,7 @@ STATIC_FILES = {
     'template_probabilistik.png': f"{GITHUB_BASE}/template_probabilistik.png",
     'template_hth.png': f"{GITHUB_BASE}/template_hth.png",
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
+    'template_doc.docx': f"{GITHUB_BASE}/template_doc.docx",
 }
 
 
