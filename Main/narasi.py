@@ -68,27 +68,36 @@ def _compute_all_percentages(province_data, kabupaten_data):
     return {"provinsi": provinsi, "kabupaten": kabupaten}
 
 
-def _find_outlier_kabupaten(province_pcts, kabupaten_pcts):
-    """Identify kabupaten whose dominant category differs from province dominant.
+def _find_outlier_kabupaten(province_pcts, kabupaten_pcts, max_outliers=3, min_deviation=15.0):
+    """Identify kabupaten whose distribution deviates significantly from province pattern.
 
-    Returns list of (kab_name, percentages) for outliers only.
+    Returns list of (kab_name, percentages) for at most max_outliers kabupaten,
+    prioritized by: (1) different dominant category from any province, then
+    (2) largest deviation in dominant % from the province's dominant %.
     """
-    prov_dominants = set()
+    prov_dominants = {}
     for prov_name, pcts in province_pcts.items():
         if pcts:
-            prov_dominants.add(pcts[0][0])
+            prov_dominants[pcts[0][0]] = max(
+                prov_dominants.get(pcts[0][0], 0), pcts[0][1]
+            )
 
     outliers = []
     for kab_name, pcts in kabupaten_pcts.items():
         if not pcts:
             continue
         kab_dominant = pcts[0][0]
-        if kab_dominant not in prov_dominants:
-            outliers.append((kab_name, pcts))
-        elif pcts[0][1] >= 60.0:
-            outliers.append((kab_name, pcts))
+        kab_pct = pcts[0][1]
 
-    return outliers
+        if kab_dominant not in prov_dominants:
+            outliers.append((kab_name, pcts, 100.0))
+        else:
+            deviation = abs(kab_pct - prov_dominants[kab_dominant])
+            if deviation >= min_deviation:
+                outliers.append((kab_name, pcts, deviation))
+
+    outliers.sort(key=lambda x: -x[2])
+    return [(name, pcts) for name, pcts, _ in outliers[:max_outliers]]
 
 
 def _format_percentages(pct_data):
