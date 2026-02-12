@@ -12,7 +12,6 @@ license = {text = "MIT"}
 authors = [
     {name = "nashathur"}
 ]
-
 dependencies = [
     "pandas>=1.5.0",
     "numpy>=1.21.0",
@@ -27,6 +26,10 @@ dependencies = [
     "pyarrow>=10.0.0",
 ]
 
+[project.optional-dependencies]
+narasi = [
+    "google-generativeai>=0.8.0",
+]
 dev = [
     "pytest>=7.0.0",
 ]
