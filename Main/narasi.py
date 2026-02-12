@@ -5,7 +5,6 @@ Pre-computes percentages from count_points data to minimize token usage.
 """
 
 import json
-import google.generativeai as genai
 
 from .utils import number_to_bulan, dasarian_romawi, dasarian_to_date
 from .config import cfg
@@ -517,6 +516,13 @@ def get_analysis(map_data):
     Returns:
         str: Generated narration paragraph in Bahasa Indonesia.
     """
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        import subprocess
+        status_update("Installing google-generativeai...")
+        subprocess.check_call(['pip', 'install', 'google-generativeai', '-q'])
+        import google.generativeai as genai
     from google.colab import userdata
     genai.configure(api_key=userdata.get('GEMINI_API_KEY'))
     status_update("Generating AI narration")
