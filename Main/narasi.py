@@ -517,14 +517,14 @@ def get_analysis(map_data):
         str: Generated narration paragraph in Bahasa Indonesia.
     """
     try:
-        import google.generativeai as genai
+        from google import genai
     except ImportError:
         import subprocess
-        status_update("Installing google-generativeai...")
-        subprocess.check_call(['pip', 'install', 'google-generativeai', '-q'])
-        import google.generativeai as genai
+        status_update("Installing google-genai...")
+        subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
+        from google import genai
     from google.colab import userdata
-    genai.configure(api_key=userdata.get('GEMINI_API_KEY'))
+    client = genai.Client(api_key=userdata.get('GEMINI_API_KEY'))
     status_update("Generating AI narration")
 
     peta = map_data['peta']
@@ -585,7 +585,9 @@ def get_analysis(map_data):
     )
 
     # --- Generate ---
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model='gemini-2.5-flash-lite',
+        contents=prompt,
+    )
     status_update("AI narration complete")
     return response.text
