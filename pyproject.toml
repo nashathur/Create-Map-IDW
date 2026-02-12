@@ -27,10 +27,6 @@ dependencies = [
     "pyarrow>=10.0.0",
 ]
 
-[project.optional-dependencies]
-narasi = [
-    "google-generativeai>=0.8.0",
-]
 dev = [
     "pytest>=7.0.0",
 ]
