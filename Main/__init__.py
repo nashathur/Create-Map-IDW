@@ -10,6 +10,7 @@ from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
+from .narasi import get_analysis
 import time
 from .logger import log_execution
 from .processors import (
@@ -123,6 +124,7 @@ __all__ = [
     'bias_map',
     'get_hth',
     'status_update',
+    'get_analysis',
 ]
 
 
