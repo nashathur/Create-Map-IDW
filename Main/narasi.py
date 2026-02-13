@@ -29,6 +29,17 @@ CATEGORY_DEFS = {
     ('HTH', 'Dasarian'): "Jumlah hari tanpa hujan berturut-turut",
 }
 
+# Priority 1 = extreme/noteworthy (always include at >=10% presence)
+# Priority 2 = normal/moderate (only include when dominant)
+CATEGORY_PRIORITY = {
+    'Sangat Tinggi': 1, 'Rendah': 1, 'Tinggi': 2, 'Menengah': 2,
+    'Atas Normal': 1, 'Bawah Normal': 1, 'Normal': 2,
+    '>30': 1, '21-30': 1, '11-20': 2, '6-10': 2, '1-5': 2,
+    'Sesuai': 1, 'Tidak Sesuai': 1,
+}
+
+_HIGH_PRIORITY_THRESHOLD = 10.0  # minimum % for priority-1 categories
+
 
 # =============================================================================
 # PERCENTAGE COMPUTATION
@@ -69,20 +80,38 @@ def _compute_all_percentages(province_data, kabupaten_data):
 
 
 def _format_kabupaten_by_category(kabupaten_pcts):
-    """Group kabupaten by their dominant category.
+    """Group kabupaten by category using priority-based filtering.
 
-    Returns formatted string listing kabupaten names under each category.
+    Priority 1 (extreme) categories: include kabupaten with >= 10% presence.
+    Priority 2 (normal) categories: include kabupaten only when dominant.
     """
-    groups = {}
+    dominant_groups = {}
+    high_priority_groups = {}
+
     for kab_name, pcts in kabupaten_pcts.items():
         if not pcts:
             continue
-        dominant = pcts[0][0]
-        groups.setdefault(dominant, []).append(kab_name)
+        # Always add to dominant group
+        dominant_groups.setdefault(pcts[0][0], []).append(kab_name)
+        # For high-priority categories, add if above threshold
+        for cat, pct_val in pcts:
+            if (CATEGORY_PRIORITY.get(cat, 2) == 1
+                    and pct_val >= _HIGH_PRIORITY_THRESHOLD):
+                high_priority_groups.setdefault(cat, []).append(kab_name)
+
+    # Merge: priority 1 uses threshold-based, priority 2 uses dominant-only
+    merged = {}
+    all_cats = set(list(dominant_groups.keys()) + list(high_priority_groups.keys()))
+    for cat in all_cats:
+        if CATEGORY_PRIORITY.get(cat, 2) == 1:
+            merged[cat] = high_priority_groups.get(cat, [])
+        else:
+            merged[cat] = dominant_groups.get(cat, [])
 
     lines = []
-    for cat, kabs in groups.items():
-        lines.append(f"{cat}: {', '.join(kabs)}")
+    for cat, kabs in merged.items():
+        if kabs:
+            lines.append(f"{cat}: {', '.join(kabs)}")
     return "\n".join(lines)
 
 
@@ -120,16 +149,16 @@ EXAMPLE_PAIRS = {
             "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Menengah: 35.7%, Sangat Tinggi: 10.0%, Rendah: 4.3%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 38.3%, Rendah: 10.6%, Sangat Tinggi: 8.5%\n"
             "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong Selatan\n"
+            "Rendah: Sorong Selatan, Fak Fak\n"
             "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak\n"
             "Tinggi: Manokwari, Manokwari Selatan, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
+            "Sangat Tinggi: Pegunungan Arfak, Manokwari"
         ),
         "output": (
             "Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi curah hujan "
             "Tinggi (300-500 mm) sebesar 50.0%, sementara Papua Barat Daya didominasi Menengah (100-300 mm) "
-            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak, "
-            "sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan."
+            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak "
+            "dan Manokwari, sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan dan Fak Fak."
         )
     },
 
@@ -210,17 +239,17 @@ EXAMPLE_PAIRS = {
             "Papua Barat (dominan: Menengah): Menengah: 42.9%, Tinggi: 40.0%, Sangat Tinggi: 10.0%, Rendah: 7.1%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 38.3%, Tinggi: 34.0%, Rendah: 17.0%, Sangat Tinggi: 10.6%\n"
             "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong Selatan\n"
+            "Rendah: Sorong Selatan, Fak Fak, Maybrat\n"
             "Menengah: Sorong, Raja Ampat, Teluk Wondama, Fak Fak\n"
             "Tinggi: Manokwari, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan"
+            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan, Kaimana"
         ),
         "output": (
             "Analisis Curah Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
             "umumnya didominasi curah hujan Menengah (100-300 mm) sebesar 42.9% di Papua Barat dan "
-            "38.3% di Papua Barat Daya. Curah hujan Tinggi (300-500 mm) dan Sangat Tinggi (>500 mm) "
-            "tercatat di Kab. Manokwari, Pegunungan Arfak, dan Manokwari Selatan, sedangkan curah hujan "
-            "Rendah (0-100 mm) tercatat di Kab. Sorong Selatan."
+            "38.3% di Papua Barat Daya. Curah hujan Sangat Tinggi (>500 mm) tercatat di Kab. Pegunungan Arfak, "
+            "Manokwari Selatan, dan Kaimana, sedangkan curah hujan Rendah (0-100 mm) tercatat di Kab. "
+            "Sorong Selatan, Fak Fak, dan Maybrat."
         )
     },
 
@@ -562,6 +591,7 @@ def get_analysis(map_data):
         "ATURAN:\n"
         "- Kalimat pertama: sebutkan dominan kategori per provinsi dengan RENTANG NILAI dan PERSENTASE.\n"
         "- Kalimat berikutnya: sebutkan nama kabupaten untuk kategori non-dominan, TANPA persentase.\n"
+        "- Sebutkan SEMUA kategori yang ada di data kabupaten, terutama kategori ekstrem.\n"
         "- Gunakan angka persentase PERSIS dari data, jangan hitung ulang.\n"
         "- Tulis teks polos tanpa formatting (tanpa bold, italic, bullet, heading).\n\n"
         f"Definisi kategori: {cat_str}\n\n"
