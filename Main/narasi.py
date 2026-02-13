@@ -17,7 +17,7 @@ from .status import update as status_update
 
 CATEGORY_DEFS = {
     ('Curah Hujan', 'Bulanan'): {"Rendah": "0-100 mm", "Menengah": "100-300 mm", "Tinggi": "300-500 mm", "Sangat Tinggi": ">500 mm"},
-    ('Curah Hujan', 'Dasarian'): {"Rendah": "0-50 mm", "Menengah": "50-150 mm", "Tinggi": "150-300 mm", "Sangat Tinggi": ">300 mm"},
+    ('Curah Hujan', 'Dasarian'): {"Rendah": "0-50 mm/das", "Menengah": "50-150 mm/das", "Tinggi": "150-300 mm/das", "Sangat Tinggi": ">300 mm/das"},
     ('Sifat Hujan', 'Bulanan'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
     ('Sifat Hujan', 'Dasarian'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
     ('Verifikasi', 'Bulanan'): {"Tidak Sesuai": "0", "Sesuai": "1"},
@@ -68,36 +68,22 @@ def _compute_all_percentages(province_data, kabupaten_data):
     return {"provinsi": provinsi, "kabupaten": kabupaten}
 
 
-def _find_outlier_kabupaten(province_pcts, kabupaten_pcts, max_outliers=3, min_deviation=15.0):
-    """Identify kabupaten whose distribution deviates significantly from province pattern.
+def _format_kabupaten_by_category(kabupaten_pcts):
+    """Group kabupaten by their dominant category.
 
-    Returns list of (kab_name, percentages) for at most max_outliers kabupaten,
-    prioritized by: (1) different dominant category from any province, then
-    (2) largest deviation in dominant % from the province's dominant %.
+    Returns formatted string listing kabupaten names under each category.
     """
-    prov_dominants = {}
-    for prov_name, pcts in province_pcts.items():
-        if pcts:
-            prov_dominants[pcts[0][0]] = max(
-                prov_dominants.get(pcts[0][0], 0), pcts[0][1]
-            )
-
-    outliers = []
+    groups = {}
     for kab_name, pcts in kabupaten_pcts.items():
         if not pcts:
             continue
-        kab_dominant = pcts[0][0]
-        kab_pct = pcts[0][1]
+        dominant = pcts[0][0]
+        groups.setdefault(dominant, []).append(kab_name)
 
-        if kab_dominant not in prov_dominants:
-            outliers.append((kab_name, pcts, 100.0))
-        else:
-            deviation = abs(kab_pct - prov_dominants[kab_dominant])
-            if deviation >= min_deviation:
-                outliers.append((kab_name, pcts, deviation))
-
-    outliers.sort(key=lambda x: -x[2])
-    return [(name, pcts) for name, pcts, _ in outliers[:max_outliers]]
+    lines = []
+    for cat, kabs in groups.items():
+        lines.append(f"{cat}: {', '.join(kabs)}")
+    return "\n".join(lines)
 
 
 def _format_percentages(pct_data):
@@ -112,12 +98,10 @@ def _format_percentages(pct_data):
         pct_str = ", ".join([f"{cat}: {val}%" for cat, val in pcts])
         lines.append(f"{name} (dominan: {dominant}): {pct_str}")
 
-    outliers = _find_outlier_kabupaten(pct_data['provinsi'], pct_data['kabupaten'])
-    if outliers:
-        lines.append("=== KABUPATEN MENONJOL ===")
-        for kab_name, pcts in outliers:
-            pct_str = ", ".join([f"{cat}: {val}%" for cat, val in pcts])
-            lines.append(f"{kab_name} (dominan: {pcts[0][0]}): {pct_str}")
+    kab_grouped = _format_kabupaten_by_category(pct_data['kabupaten'])
+    if kab_grouped:
+        lines.append("=== KABUPATEN PER KATEGORI ===")
+        lines.append(kab_grouped)
 
     return "\n".join(lines)
 
@@ -135,19 +119,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Menengah: 35.7%, Sangat Tinggi: 10.0%, Rendah: 4.3%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 38.3%, Rendah: 10.6%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Pegunungan Arfak (dominan: Tinggi): Tinggi: 50.0%, Sangat Tinggi: 40.0%, Menengah: 10.0%\n"
-            "Sorong (dominan: Menengah): Menengah: 53.3%, Tinggi: 33.3%, Rendah: 13.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong Selatan\n"
+            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak\n"
+            "Tinggi: Manokwari, Manokwari Selatan, Teluk Bintuni, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak"
         ),
         "output": (
-            "Pada bulan September 2024, umumnya prakiraan curah hujan di Papua Barat pada kategori "
-            "Tinggi yaitu sejumlah 50.0%, dan sisanya mengalami curah hujan kategori Menengah yaitu "
-            "sejumlah 35.7%, kategori Sangat Tinggi sejumlah 10.0%, dan kategori Rendah sejumlah 4.3%. "
-            "Sementara itu, di Papua Barat Daya umumnya pada kategori Menengah yaitu sejumlah 42.6%, "
-            "kategori Tinggi sejumlah 38.3%, kategori Rendah sejumlah 10.6%, dan kategori Sangat Tinggi "
-            "sejumlah 8.5%. Secara khusus, Kab. Pegunungan Arfak diprakirakan mengalami curah hujan "
-            "dengan kategori Sangat Tinggi mencapai 40.0%. Kab. Sorong diprakirakan didominasi curah "
-            "hujan kategori Menengah sejumlah 53.3%."
+            "Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi curah hujan "
+            "Tinggi (300-500 mm) sebesar 50.0%, sementara Papua Barat Daya didominasi Menengah (100-300 mm) "
+            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak, "
+            "sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan."
         )
     },
 
@@ -159,17 +141,19 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Menengah): Menengah: 46.2%, Tinggi: 30.8%, Rendah: 15.4%, Sangat Tinggi: 7.7%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 48.9%, Tinggi: 26.7%, Rendah: 17.8%, Sangat Tinggi: 6.7%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Menengah): Menengah: 44.4%, Tinggi: 38.9%, Sangat Tinggi: 11.1%, Rendah: 5.6%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong, Sorong Selatan\n"
+            "Menengah: Raja Ampat, Teluk Wondama, Maybrat, Fak Fak, Teluk Bintuni\n"
+            "Tinggi: Manokwari, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak"
         ),
         "output": (
-            "Pada dasarian I September 2024, umumnya prakiraan curah hujan di Papua Barat pada kategori "
-            "Menengah yaitu sejumlah 46.2%, dan sisanya mengalami curah hujan kategori Tinggi yaitu "
-            "sejumlah 30.8%, kategori Rendah sejumlah 15.4%, dan kategori Sangat Tinggi sejumlah 7.7%. "
-            "Sementara itu, di Papua Barat Daya umumnya pada kategori Menengah yaitu sejumlah 48.9%, "
-            "kategori Tinggi sejumlah 26.7%, kategori Rendah sejumlah 17.8%, dan kategori Sangat Tinggi "
-            "sejumlah 6.7%. Secara khusus, Kab. Manokwari diprakirakan memiliki curah hujan yang lebih "
-            "tinggi dibandingkan wilayah lain dengan kategori Tinggi mencapai 38.9%."
+            "Prakiraan Curah Hujan Dasarian I September 2024 (1 - 10 September 2024) di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya didominasi curah hujan Menengah (50-150 mm/das) "
+            "sebesar 46.2% di Papua Barat dan 48.9% di Papua Barat Daya. Curah hujan Rendah (0-50 mm/das) "
+            "diprakirakan terjadi di Kab. Sorong dan Sorong Selatan. Sedangkan curah hujan Tinggi "
+            "(150-300 mm/das) dan Sangat Tinggi (>300 mm/das) diprakirakan terjadi di Kab. Manokwari, "
+            "Kaimana, dan Pegunungan Arfak."
         )
     },
 
@@ -181,18 +165,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Normal): Normal: 57.1%, Atas Normal: 25.7%, Bawah Normal: 17.1%\n"
             "Papua Barat Daya (dominan: Normal): Normal: 46.8%, Bawah Normal: 31.9%, Atas Normal: 21.3%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Atas Normal): Atas Normal: 55.6%, Normal: 44.4%\n"
-            "Teluk Bintuni (dominan: Bawah Normal): Bawah Normal: 57.1%, Normal: 28.6%, Atas Normal: 14.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
+            "Normal: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Kaimana\n"
+            "Atas Normal: Manokwari, Pegunungan Arfak"
         ),
         "output": (
-            "Pada bulan September 2024, prakiraan sifat hujan di Papua Barat umumnya didominasi "
-            "kategori Normal yaitu sejumlah 57.1%, dan sisanya kategori Atas Normal sejumlah 25.7%, "
-            "dan kategori Bawah Normal sejumlah 17.1%. Sementara itu, di Papua Barat Daya umumnya "
-            "pada kategori Normal yaitu sejumlah 46.8%, kategori Bawah Normal sejumlah 31.9%, dan "
-            "kategori Atas Normal sejumlah 21.3%. Secara khusus, Kab. Manokwari diprakirakan memiliki "
-            "sifat hujan Atas Normal yang dominan sejumlah 55.6%. Kab. Teluk Bintuni diprakirakan "
-            "memiliki sifat hujan Bawah Normal yang dominan sejumlah 57.1%."
+            "Prakiraan Sifat Hujan Bulan September 2024 di Provinsi Papua Barat dan Papua Barat Daya "
+            "umumnya didominasi sifat hujan Normal (85%-115%) sebesar 57.1% di Papua Barat dan 46.8% "
+            "di Papua Barat Daya. Sifat hujan Atas Normal (>116%) diprakirakan terjadi di Kab. Manokwari "
+            "dan Pegunungan Arfak, sedangkan sifat hujan Bawah Normal (0%-84%) diprakirakan di Kab. "
+            "Teluk Bintuni dan Fak Fak."
         )
     },
 
@@ -204,16 +187,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Normal): Normal: 60.0%, Atas Normal: 25.7%, Bawah Normal: 14.3%\n"
             "Papua Barat Daya (dominan: Normal): Normal: 53.2%, Bawah Normal: 29.8%, Atas Normal: 17.0%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Teluk Bintuni (dominan: Bawah Normal): Bawah Normal: 50.0%, Normal: 35.7%, Atas Normal: 14.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
+            "Normal: Sorong, Raja Ampat, Manokwari, Teluk Wondama, Maybrat, Kaimana\n"
+            "Atas Normal: Pegunungan Arfak, Manokwari Selatan"
         ),
         "output": (
-            "Pada dasarian II September 2024, prakiraan sifat hujan di Papua Barat umumnya didominasi "
-            "kategori Normal yaitu sejumlah 60.0%, dan sisanya kategori Atas Normal sejumlah 25.7%, "
-            "dan kategori Bawah Normal sejumlah 14.3%. Sementara itu, di Papua Barat Daya umumnya "
-            "pada kategori Normal yaitu sejumlah 53.2%, kategori Bawah Normal sejumlah 29.8%, dan "
-            "kategori Atas Normal sejumlah 17.0%. Secara khusus, Kab. Teluk Bintuni diprakirakan "
-            "memiliki sifat hujan Bawah Normal yang dominan sejumlah 50.0%."
+            "Prakiraan Sifat Hujan Dasarian II September 2024 (11 - 20 September 2024) di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya didominasi sifat hujan Normal (85%-115%) sebesar "
+            "60.0% di Papua Barat dan 53.2% di Papua Barat Daya. Sifat hujan Bawah Normal (0%-84%) "
+            "diprakirakan terjadi di Kab. Teluk Bintuni dan Fak Fak, sedangkan sifat hujan Atas Normal "
+            "(>116%) diprakirakan di Kab. Pegunungan Arfak dan Manokwari Selatan."
         )
     },
 
@@ -225,19 +209,18 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Menengah): Menengah: 42.9%, Tinggi: 40.0%, Sangat Tinggi: 10.0%, Rendah: 7.1%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 38.3%, Tinggi: 34.0%, Rendah: 17.0%, Sangat Tinggi: 10.6%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Tinggi): Tinggi: 55.6%, Sangat Tinggi: 22.2%, Menengah: 22.2%\n"
-            "Sorong (dominan: Menengah): Menengah: 53.3%, Tinggi: 20.0%, Rendah: 20.0%, Sangat Tinggi: 6.7%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong Selatan\n"
+            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Fak Fak\n"
+            "Tinggi: Manokwari, Teluk Bintuni, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan"
         ),
         "output": (
-            "Pada bulan Agustus 2024, umumnya analisis curah hujan di Papua Barat tercatat pada kategori "
-            "Menengah yaitu sejumlah 42.9%, dan sisanya mengalami curah hujan kategori Tinggi yaitu "
-            "sejumlah 40.0%, kategori Sangat Tinggi sejumlah 10.0%, dan kategori Rendah sejumlah 7.1%. "
-            "Sementara itu, di Papua Barat Daya umumnya pada kategori Menengah yaitu sejumlah 38.3%, "
-            "kategori Tinggi sejumlah 34.0%, kategori Rendah sejumlah 17.0%, dan kategori Sangat Tinggi "
-            "sejumlah 10.6%. Secara khusus, Kab. Manokwari tercatat mengalami curah hujan yang lebih "
-            "tinggi dengan kategori Tinggi mencapai 55.6% dan Sangat Tinggi mencapai 22.2%. Kab. Sorong "
-            "tercatat didominasi curah hujan kategori Menengah sejumlah 53.3%."
+            "Analisis Curah Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
+            "umumnya didominasi curah hujan Menengah (100-300 mm) sebesar 42.9% di Papua Barat dan "
+            "38.3% di Papua Barat Daya. Curah hujan Tinggi (300-500 mm) dan Sangat Tinggi (>500 mm) "
+            "tercatat di Kab. Manokwari, Pegunungan Arfak, dan Manokwari Selatan, sedangkan curah hujan "
+            "Rendah (0-100 mm) tercatat di Kab. Sorong Selatan."
         )
     },
 
@@ -249,17 +232,19 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Menengah): Menengah: 43.1%, Tinggi: 27.7%, Rendah: 23.1%, Sangat Tinggi: 6.2%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 44.4%, Rendah: 26.7%, Tinggi: 22.2%, Sangat Tinggi: 6.7%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Menengah): Menengah: 38.9%, Tinggi: 33.3%, Sangat Tinggi: 16.7%, Rendah: 11.1%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong, Sorong Selatan, Maybrat\n"
+            "Menengah: Raja Ampat, Teluk Wondama, Fak Fak, Teluk Bintuni\n"
+            "Tinggi: Manokwari, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak"
         ),
         "output": (
-            "Pada dasarian III Agustus 2024, umumnya analisis curah hujan di Papua Barat tercatat pada "
-            "kategori Menengah yaitu sejumlah 43.1%, dan sisanya mengalami curah hujan kategori Tinggi "
-            "yaitu sejumlah 27.7%, kategori Rendah sejumlah 23.1%, dan kategori Sangat Tinggi sejumlah "
-            "6.2%. Sementara itu, di Papua Barat Daya umumnya pada kategori Menengah yaitu sejumlah "
-            "44.4%, kategori Rendah sejumlah 26.7%, kategori Tinggi sejumlah 22.2%, dan kategori Sangat "
-            "Tinggi sejumlah 6.7%. Secara khusus, Kab. Manokwari tercatat mengalami curah hujan yang "
-            "lebih tinggi dengan kategori Tinggi mencapai 33.3% dan Sangat Tinggi mencapai 16.7%."
+            "Analisis Curah Hujan Dasarian III Agustus 2024 (21 - 31 Agustus 2024) di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya didominasi curah hujan Menengah (50-150 mm/das) "
+            "sebesar 43.1% di Papua Barat dan 44.4% di Papua Barat Daya. Curah hujan Rendah "
+            "(0-50 mm/das) tercatat di Kab. Sorong, Sorong Selatan, dan Maybrat, sedangkan curah hujan "
+            "Tinggi (150-300 mm/das) dan Sangat Tinggi (>300 mm/das) tercatat di Kab. Manokwari, "
+            "Kaimana, dan Pegunungan Arfak."
         )
     },
 
@@ -271,18 +256,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Normal): Normal: 54.3%, Atas Normal: 25.7%, Bawah Normal: 20.0%\n"
             "Papua Barat Daya (dominan: Normal): Normal: 42.6%, Bawah Normal: 34.0%, Atas Normal: 23.4%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Atas Normal): Atas Normal: 55.6%, Normal: 38.9%, Bawah Normal: 5.6%\n"
-            "Teluk Bintuni (dominan: Bawah Normal): Bawah Normal: 64.3%, Normal: 21.4%, Atas Normal: 14.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Bawah Normal: Teluk Bintuni, Fak Fak, Maybrat\n"
+            "Normal: Sorong, Raja Ampat, Teluk Wondama, Kaimana, Sorong Selatan\n"
+            "Atas Normal: Manokwari, Pegunungan Arfak"
         ),
         "output": (
-            "Pada bulan Agustus 2024, analisis sifat hujan di Papua Barat umumnya didominasi kategori "
-            "Normal yaitu sejumlah 54.3%, dan sisanya kategori Atas Normal sejumlah 25.7%, dan kategori "
-            "Bawah Normal sejumlah 20.0%. Sementara itu, di Papua Barat Daya umumnya pada kategori "
-            "Normal yaitu sejumlah 42.6%, kategori Bawah Normal sejumlah 34.0%, dan kategori Atas Normal "
-            "sejumlah 23.4%. Secara khusus, Kab. Manokwari tercatat memiliki sifat hujan Atas Normal "
-            "yang dominan sejumlah 55.6%. Kab. Teluk Bintuni tercatat memiliki sifat hujan Bawah Normal "
-            "yang dominan sejumlah 64.3%."
+            "Analisis Sifat Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
+            "umumnya didominasi sifat hujan Normal (85%-115%) sebesar 54.3% di Papua Barat dan 42.6% "
+            "di Papua Barat Daya. Sifat hujan Atas Normal (>116%) tercatat di Kab. Manokwari dan "
+            "Pegunungan Arfak, sedangkan sifat hujan Bawah Normal (0%-84%) tercatat di Kab. Teluk Bintuni, "
+            "Fak Fak, dan Maybrat."
         )
     },
 
@@ -294,18 +278,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Normal): Normal: 57.1%, Atas Normal: 25.7%, Bawah Normal: 17.1%\n"
             "Papua Barat Daya (dominan: Normal): Normal: 51.1%, Bawah Normal: 27.7%, Atas Normal: 21.3%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Normal): Normal: 50.0%, Atas Normal: 50.0%\n"
-            "Teluk Bintuni (dominan: Bawah Normal): Bawah Normal: 57.1%, Normal: 28.6%, Atas Normal: 14.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
+            "Normal: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Kaimana\n"
+            "Atas Normal: Manokwari, Pegunungan Arfak"
         ),
         "output": (
-            "Pada dasarian I Agustus 2024, analisis sifat hujan di Papua Barat umumnya didominasi "
-            "kategori Normal yaitu sejumlah 57.1%, dan sisanya kategori Atas Normal sejumlah 25.7%, "
-            "dan kategori Bawah Normal sejumlah 17.1%. Sementara itu, di Papua Barat Daya umumnya "
-            "pada kategori Normal yaitu sejumlah 51.1%, kategori Bawah Normal sejumlah 27.7%, dan "
-            "kategori Atas Normal sejumlah 21.3%. Secara khusus, Kab. Manokwari tercatat memiliki "
-            "sifat hujan Normal dan Atas Normal masing-masing sejumlah 50.0%. Kab. Teluk Bintuni "
-            "tercatat memiliki sifat hujan Bawah Normal yang dominan sejumlah 57.1%."
+            "Analisis Sifat Hujan Dasarian I Agustus 2024 (1 - 10 Agustus 2024) di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya didominasi sifat hujan Normal (85%-115%) sebesar "
+            "57.1% di Papua Barat dan 51.1% di Papua Barat Daya. Sifat hujan Bawah Normal (0%-84%) "
+            "tercatat di Kab. Teluk Bintuni dan Fak Fak, sedangkan sifat hujan Atas Normal (>116%) "
+            "tercatat di Kab. Manokwari dan Pegunungan Arfak."
         )
     },
 
@@ -318,22 +301,16 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Tidak Sesuai): Tidak Sesuai: 57.1%, Sesuai: 42.9%\n"
             "Papua Barat Daya (dominan: Tidak Sesuai): Tidak Sesuai: 59.6%, Sesuai: 40.4%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Sorong (dominan: Sesuai): Sesuai: 66.7%, Tidak Sesuai: 33.3%\n"
-            "Maybrat (dominan: Sesuai): Sesuai: 66.7%, Tidak Sesuai: 33.3%\n"
-            "Manokwari (dominan: Tidak Sesuai): Tidak Sesuai: 66.7%, Sesuai: 33.3%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Tidak Sesuai: Manokwari, Pegunungan Arfak, Teluk Bintuni, Kaimana, Fak Fak\n"
+            "Sesuai: Sorong, Maybrat, Raja Ampat, Teluk Wondama"
         ),
         "output": (
-            "Pada bulan September 2024, hasil verifikasi prakiraan curah hujan di Papua Barat "
-            "menunjukkan kategori Tidak Sesuai sejumlah 57.1% dan Sesuai sejumlah 42.9%. "
-            "Sementara itu, di Papua Barat Daya kategori Tidak Sesuai sejumlah 59.6% dan "
-            "Sesuai sejumlah 40.4%. Beberapa wilayah yang menunjukkan kesesuaian lebih tinggi "
-            "antara lain Kab. Sorong dan Kab. Maybrat dengan kategori Sesuai masing-masing "
-            "sejumlah 66.7%. Sebaliknya, Kab. Manokwari menunjukkan ketidaksesuaian yang lebih "
-            "tinggi dengan kategori Tidak Sesuai sejumlah 66.7%. Akurasi keseluruhan (Percent "
-            "Correct) mencapai 45.30%, Heidke Skill Score (HSS) sebesar 1.20%, dan Peirce Skill "
-            "Score (PSS) sebesar 12.00%, mengindikasikan bahwa model memiliki kemampuan yang hanya "
-            "sedikit lebih baik dibandingkan prakiraan acak."
+            "Verifikasi Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat dan "
+            "Papua Barat Daya menunjukkan hasil yang umumnya Tidak Sesuai sebesar 57.1% di Papua Barat "
+            "dan 59.6% di Papua Barat Daya. Beberapa wilayah dengan kesesuaian lebih tinggi antara lain "
+            "Kab. Sorong, Maybrat, Raja Ampat, dan Teluk Wondama. Akurasi keseluruhan (PC) mencapai "
+            "45.30%, HSS sebesar 1.20%, dan PSS sebesar 12.00%."
         )
     },
 
@@ -346,20 +323,16 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Sesuai): Sesuai: 57.1%, Tidak Sesuai: 42.9%\n"
             "Papua Barat Daya (dominan: Sesuai): Sesuai: 57.4%, Tidak Sesuai: 42.6%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Sesuai): Sesuai: 66.7%, Tidak Sesuai: 33.3%\n"
-            "Teluk Bintuni (dominan: Tidak Sesuai): Tidak Sesuai: 64.3%, Sesuai: 35.7%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Tidak Sesuai: Teluk Bintuni, Fak Fak, Kaimana\n"
+            "Sesuai: Manokwari, Sorong, Raja Ampat, Pegunungan Arfak, Maybrat"
         ),
         "output": (
-            "Pada bulan September 2024, hasil verifikasi prakiraan sifat hujan di Papua Barat "
-            "menunjukkan kategori Sesuai sejumlah 57.1% dan Tidak Sesuai sejumlah 42.9%. "
-            "Sementara itu, di Papua Barat Daya kategori Sesuai sejumlah 57.4% dan Tidak Sesuai "
-            "sejumlah 42.6%. Secara khusus, Kab. Manokwari menunjukkan kesesuaian yang lebih tinggi "
-            "dengan kategori Sesuai sejumlah 66.7%. Sebaliknya, Kab. Teluk Bintuni menunjukkan "
-            "ketidaksesuaian yang lebih tinggi dengan kategori Tidak Sesuai sejumlah 64.3%. "
-            "Akurasi keseluruhan (Percent Correct) mencapai 52.14%, Heidke Skill Score (HSS) "
-            "sebesar 8.30%, dan Peirce Skill Score (PSS) sebesar 15.00%, mengindikasikan bahwa "
-            "model memiliki kemampuan yang sedikit lebih baik dibandingkan prakiraan acak."
+            "Verifikasi Prakiraan Sifat Hujan Bulan September 2024 di Provinsi Papua Barat dan "
+            "Papua Barat Daya menunjukkan hasil yang umumnya Sesuai sebesar 57.1% di Papua Barat dan "
+            "57.4% di Papua Barat Daya. Beberapa wilayah yang menunjukkan ketidaksesuaian antara lain "
+            "Kab. Teluk Bintuni, Fak Fak, dan Kaimana. Akurasi keseluruhan (PC) mencapai 52.14%, "
+            "HSS sebesar 8.30%, dan PSS sebesar 15.00%."
         )
     },
 
@@ -371,18 +344,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Sangat Tinggi: 42.9%, Menengah: 7.1%\n"
             "Papua Barat Daya (dominan: Tinggi): Tinggi: 53.2%, Sangat Tinggi: 40.4%, Menengah: 6.4%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Sangat Tinggi): Sangat Tinggi: 55.6%, Tinggi: 44.4%\n"
-            "Pegunungan Arfak (dominan: Tinggi): Tinggi: 40.0%, Sangat Tinggi: 40.0%, Menengah: 20.0%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Menengah: Sorong, Sorong Selatan\n"
+            "Tinggi: Raja Ampat, Teluk Wondama, Fak Fak, Maybrat, Teluk Bintuni\n"
+            "Sangat Tinggi: Manokwari, Pegunungan Arfak, Kaimana"
         ),
         "output": (
-            "Pada bulan Januari 2024, prakiraan probabilistik curah hujan di Papua Barat umumnya "
-            "pada kategori Tinggi yaitu sejumlah 50.0%, dan sisanya kategori Sangat Tinggi sejumlah "
-            "42.9%, dan kategori Menengah sejumlah 7.1%. Sementara itu, di Papua Barat Daya umumnya "
-            "pada kategori Tinggi yaitu sejumlah 53.2%, kategori Sangat Tinggi sejumlah 40.4%, dan "
-            "kategori Menengah sejumlah 6.4%. Secara khusus, Kab. Manokwari memiliki peluang tertinggi "
-            "dengan kategori Sangat Tinggi mencapai 55.6%. Kab. Pegunungan Arfak menunjukkan variasi "
-            "yang lebih luas dengan kategori Menengah mencapai 20.0%."
+            "Prakiraan Probabilistik Curah Hujan Bulan Januari 2024 di Provinsi Papua Barat dan "
+            "Papua Barat Daya umumnya didominasi curah hujan Tinggi (300-500 mm) sebesar 50.0% di "
+            "Papua Barat dan 53.2% di Papua Barat Daya. Curah hujan Sangat Tinggi (>500 mm) "
+            "diprakirakan terjadi di Kab. Manokwari, Pegunungan Arfak, dan Kaimana, sedangkan curah "
+            "hujan Menengah (100-300 mm) diprakirakan di Kab. Sorong dan Sorong Selatan."
         )
     },
 
@@ -394,17 +366,17 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Menengah): Menengah: 42.9%, Rendah: 28.6%, Tinggi: 21.4%, Sangat Tinggi: 7.1%\n"
             "Papua Barat Daya (dominan: Rendah): Rendah: 38.3%, Menengah: 31.9%, Tinggi: 21.3%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Sorong (dominan: Rendah): Rendah: 46.7%, Menengah: 33.3%, Tinggi: 13.3%, Sangat Tinggi: 6.7%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong, Sorong Selatan, Fak Fak\n"
+            "Menengah: Raja Ampat, Teluk Wondama, Maybrat, Teluk Bintuni\n"
+            "Tinggi: Manokwari, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak"
         ),
         "output": (
-            "Pada bulan September 2024, bias curah hujan di Papua Barat umumnya pada kategori "
-            "Menengah yaitu sejumlah 42.9%, dan sisanya kategori Rendah sejumlah 28.6%, kategori "
-            "Tinggi sejumlah 21.4%, dan kategori Sangat Tinggi sejumlah 7.1%. Sementara itu, "
-            "di Papua Barat Daya umumnya pada kategori Rendah yaitu sejumlah 38.3%, kategori "
-            "Menengah sejumlah 31.9%, kategori Tinggi sejumlah 21.3%, dan kategori Sangat Tinggi "
-            "sejumlah 8.5%. Secara khusus, Kab. Sorong menunjukkan bias yang lebih rendah dengan "
-            "kategori Rendah sejumlah 46.7%."
+            "Bias Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi kategori "
+            "Menengah sebesar 42.9%, sementara Papua Barat Daya didominasi kategori Rendah sebesar "
+            "38.3%. Bias yang lebih tinggi tercatat di Kab. Manokwari, Kaimana, dan Pegunungan Arfak, "
+            "sedangkan bias Rendah tercatat di Kab. Sorong, Sorong Selatan, dan Fak Fak."
         )
     },
 
@@ -416,17 +388,18 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: Menengah): Menengah: 50.0%, Tinggi: 31.4%, Rendah: 11.4%, Sangat Tinggi: 7.1%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 27.7%, Rendah: 21.3%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Manokwari (dominan: Tinggi): Tinggi: 50.0%, Menengah: 33.3%, Sangat Tinggi: 16.7%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "Rendah: Sorong Selatan\n"
+            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak, Teluk Bintuni\n"
+            "Tinggi: Manokwari, Kaimana\n"
+            "Sangat Tinggi: Pegunungan Arfak"
         ),
         "output": (
-            "Berdasarkan rata-rata periode 1991-2020, normal curah hujan bulan September di Papua Barat "
-            "umumnya pada kategori Menengah yaitu sejumlah 50.0%, dan sisanya kategori Tinggi sejumlah "
-            "31.4%, kategori Rendah sejumlah 11.4%, dan kategori Sangat Tinggi sejumlah 7.1%. "
-            "Sementara itu, di Papua Barat Daya umumnya pada kategori Menengah yaitu sejumlah 42.6%, "
-            "kategori Tinggi sejumlah 27.7%, kategori Rendah sejumlah 21.3%, dan kategori Sangat Tinggi "
-            "sejumlah 8.5%. Secara khusus, Kab. Manokwari memiliki curah hujan normal yang lebih tinggi "
-            "dengan kategori Tinggi mencapai 50.0% dan Sangat Tinggi mencapai 16.7%."
+            "Normal Curah Hujan Bulan September berdasarkan rata-rata periode 1991-2020 di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya pada kategori Menengah (100-300 mm) sebesar "
+            "50.0% di Papua Barat dan 42.6% di Papua Barat Daya. Curah hujan normal Tinggi (300-500 mm) "
+            "dan Sangat Tinggi (>500 mm) tercatat di Kab. Manokwari, Kaimana, dan Pegunungan Arfak, "
+            "sedangkan curah hujan normal Rendah (0-100 mm) di Kab. Sorong Selatan."
         )
     },
 
@@ -438,18 +411,18 @@ EXAMPLE_PAIRS = {
             "=== PROVINSI ===\n"
             "Papua Barat (dominan: 1-5): 1-5: 42.6%, 6-10: 31.9%, 11-20: 17.0%, 21-30: 6.4%, >30: 2.1%\n"
             "Papua Barat Daya (dominan: 1-5): 1-5: 42.9%, 6-10: 34.3%, 11-20: 17.1%, 21-30: 5.7%\n"
-            "=== KABUPATEN MENONJOL ===\n"
-            "Sorong (dominan: 6-10): 6-10: 30.8%, 1-5: 23.1%, 11-20: 23.1%, 21-30: 15.4%, >30: 7.7%"
+            "=== KABUPATEN PER KATEGORI ===\n"
+            "1-5: Manokwari, Raja Ampat, Teluk Wondama, Fak Fak\n"
+            "6-10: Pegunungan Arfak, Maybrat, Teluk Bintuni, Kaimana\n"
+            "11-20: Manokwari Selatan\n"
+            "21-30: Sorong\n"
+            ">30: Sorong Selatan"
         ),
         "output": (
-            "Pada update dasarian I September 2024, monitoring hari tanpa hujan berturut-turut di "
-            "Papua Barat menunjukkan kategori 1-5 hari yaitu sejumlah 42.6%, dan sisanya kategori "
-            "6-10 hari sejumlah 31.9%, kategori 11-20 hari sejumlah 17.0%, kategori 21-30 hari "
-            "sejumlah 6.4%, dan kategori >30 hari sejumlah 2.1%. Sementara itu, di Papua Barat Daya "
-            "umumnya pada kategori 1-5 hari yaitu sejumlah 42.9%, kategori 6-10 hari sejumlah 34.3%, "
-            "kategori 11-20 hari sejumlah 17.1%, dan kategori 21-30 hari sejumlah 5.7%. Secara khusus, "
-            "Kab. Sorong perlu mendapat perhatian dengan hari tanpa hujan berturut-turut yang lebih "
-            "panjang, termasuk kategori 21-30 hari sejumlah 15.4% dan >30 hari sejumlah 7.7%."
+            "Monitoring Hari Tanpa Hujan Berturut-turut Update Dasarian I September 2024 di Provinsi "
+            "Papua Barat dan Papua Barat Daya umumnya pada kategori 1-5 hari sebesar 42.6% di Papua "
+            "Barat dan 42.9% di Papua Barat Daya. Hari tanpa hujan yang lebih panjang (21-30 hari dan "
+            ">30 hari) perlu mendapat perhatian di Kab. Sorong dan Sorong Selatan."
         )
     },
 }
@@ -585,9 +558,12 @@ def get_analysis(map_data):
     # --- Build prompt ---
     prompt = (
         "Kamu penulis narasi peta BMKG. "
-        "Tulis narasi untuk data baru dengan STRUKTUR KALIMAT, GAYA, dan ALUR yang IDENTIK dengan contoh. "
-        "Hanya ganti data, wilayah, dan periode sesuai data baru. "
-        "Gunakan semua angka persentase persis seperti yang diberikan, jangan hitung ulang.\n\n"
+        "Tulis narasi SINGKAT (2-3 kalimat) dengan STRUKTUR dan GAYA yang IDENTIK dengan contoh.\n"
+        "ATURAN:\n"
+        "- Kalimat pertama: sebutkan dominan kategori per provinsi dengan RENTANG NILAI dan PERSENTASE.\n"
+        "- Kalimat berikutnya: sebutkan nama kabupaten untuk kategori non-dominan, TANPA persentase.\n"
+        "- Gunakan angka persentase PERSIS dari data, jangan hitung ulang.\n"
+        "- Tulis teks polos tanpa formatting (tanpa bold, italic, bullet, heading).\n\n"
         f"Definisi kategori: {cat_str}\n\n"
         f"=== CONTOH ===\nInput:\n{example['input']}\n\nOutput:\n{example['output']}\n=== AKHIR CONTOH ===\n\n"
         f"=== DATA BARU ===\nInput:\n{current_input}\n\nOutput:"
