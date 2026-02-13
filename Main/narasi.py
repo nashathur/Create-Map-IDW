@@ -587,7 +587,8 @@ def get_analysis(map_data):
         "Kamu penulis narasi peta BMKG. "
         "Tulis narasi untuk data baru dengan STRUKTUR KALIMAT, GAYA, dan ALUR yang IDENTIK dengan contoh. "
         "Hanya ganti data, wilayah, dan periode sesuai data baru. "
-        "Gunakan semua angka persentase persis seperti yang diberikan, jangan hitung ulang.\n\n"
+        "Gunakan semua angka persentase persis seperti yang diberikan, jangan hitung ulang. "
+        "PENTING: Tulis narasi sesingkat mungkin, maksimal 3-4 kalimat. Langsung ke inti tanpa pengulangan.\n\n"
         f"Definisi kategori: {cat_str}\n\n"
         f"=== CONTOH ===\nInput:\n{example['input']}\n\nOutput:\n{example['output']}\n=== AKHIR CONTOH ===\n\n"
         f"=== DATA BARU ===\nInput:\n{current_input}\n\nOutput:"
@@ -632,14 +633,28 @@ def get_visual_interpretation(map_data):
     map_data['image'].save(buf, format='PNG')
     image_bytes = buf.getvalue()
 
+    # Build grounding data from count_points to reduce hallucination
+    grounding = ""
+    if map_data.get('province_data') and map_data.get('kabupaten_data'):
+        pct_data = _compute_all_percentages(
+            map_data['province_data'],
+            map_data['kabupaten_data']
+        )
+        grounding = (
+            "\n\nBerikut data statistik aktual sebagai referensi (GUNAKAN angka ini, "
+            "JANGAN mengarang angka sendiri):\n"
+            + _format_percentages(pct_data)
+        )
+
     prompt = (
         "Kamu adalah analis cuaca BMKG yang ahli membaca peta. "
         "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya. "
         "Berikan interpretasi analitis dalam Bahasa Indonesia, cukup 2-3 kalimat saja. "
         "Fokus pada pola distribusi spasial, kontras regional, dan apa yang secara visual ditunjukkan peta. "
-        "JANGAN mengulangi data persentase secara mekanis. "
+        "JANGAN mengarang angka atau persentase yang tidak ada dalam data referensi. "
         "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading). "
         "Tulis dalam teks polos karena ini untuk laporan."
+        + grounding
     )
 
     model = genai.GenerativeModel('gemini-3-flash-preview')
