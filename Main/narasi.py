@@ -594,7 +594,7 @@ def get_analysis(map_data):
     )
 
     # --- Generate ---
-    model = genai.GenerativeModel('gemini-3-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content(prompt)
     status_update("AI narration complete")
     return response.text
@@ -633,18 +633,16 @@ def get_visual_interpretation(map_data):
     image_bytes = buf.getvalue()
 
     prompt = (
-        "Kamu adalah analis cuaca BMKG yang ahli membaca peta.\n"
-        "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya.\n"
-        "Berikan interpretasi analitis dalam Bahasa Indonesia (1-2 paragraf).\n\n"
-        "Fokus pada:\n"
-        "- Pola distribusi spasial: di mana konsentrasi, gradien, atau anomali terlihat\n"
-        "- Kontras regional atau klaster yang menonjol\n"
-        "- Apa yang secara visual ditunjukkan peta ini\n\n"
+        "Kamu adalah analis cuaca BMKG yang ahli membaca peta. "
+        "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya. "
+        "Berikan interpretasi analitis dalam Bahasa Indonesia, cukup 2-3 kalimat saja. "
+        "Fokus pada pola distribusi spasial, kontras regional, dan apa yang secara visual ditunjukkan peta. "
         "JANGAN mengulangi data persentase secara mekanis. "
-        "Fokuslah pada apa yang *terlihat* di peta secara visual."
+        "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading). "
+        "Tulis dalam teks polos karena ini untuk laporan."
     )
 
-    model = genai.GenerativeModel('gemini-3-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
     status_update("Visual interpretation complete")
     return response.text
