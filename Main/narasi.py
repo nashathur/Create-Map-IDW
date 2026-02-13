@@ -594,7 +594,7 @@ def get_analysis(map_data):
     )
 
     # --- Generate ---
-    model = genai.GenerativeModel('gemini-3-flash')
+    model = genai.GenerativeModel('gemini-3-flash-preview')
     response = model.generate_content(prompt)
     status_update("AI narration complete")
     return response.text
@@ -644,7 +644,7 @@ def get_visual_interpretation(map_data):
         "Fokuslah pada apa yang *terlihat* di peta secara visual."
     )
 
-    model = genai.GenerativeModel('gemini-3-flash')
+    model = genai.GenerativeModel('gemini-3-flash-preview')
     response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
     status_update("Visual interpretation complete")
     return response.text
