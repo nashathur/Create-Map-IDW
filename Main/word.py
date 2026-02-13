@@ -9,7 +9,7 @@ import io
 from .config import cfg, CACHE_DIR
 from .utils import number_to_bulan, dasarian_romawi
 from .status import update as status_update
-from .narasi import get_analysis, get_visual_interpretation
+from .narasi import get_analysis
 
 
 def arrange_word(map_data):
@@ -51,7 +51,6 @@ def arrange_word(map_data):
 
         # Get AI narration
         analysis = get_analysis(map_data)
-        visual = get_visual_interpretation(map_data)
 
         # Convert PIL Image to BytesIO buffer
         image_buffer = io.BytesIO()
@@ -67,7 +66,7 @@ def arrange_word(map_data):
             'image1': InlineImage(doc, image_buffer, width=Cm(15)),
             'desc': desc,
             'text1': analysis,
-            'text2': visual,
+            'text2': '',
         }
 
         # Render and save
