@@ -663,14 +663,12 @@ def get_visual_interpretation(map_data):
 
 
 def get_full_narration(map_data):
-    """Generate structured analysis with visual interpretation appended.
+    """Generate narration for a BMKG map.
 
     Args:
         map_data: dict returned by execute() or overlay_image().
 
     Returns:
-        str: Combined narration as a single paragraph.
+        str: Narration paragraph.
     """
-    structured = get_analysis(map_data).strip()
-    visual = get_visual_interpretation(map_data).strip()
-    return f"{structured} {visual}"
+    return get_analysis(map_data)
