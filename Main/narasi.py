@@ -576,6 +576,56 @@ def get_analysis(map_data):
     return response.text
 
 
+def get_visual_interpretation(map_data):
+    """Generate a freeform visual interpretation of a BMKG map image using Gemini.
+
+    Args:
+        map_data: dict returned by execute() or overlay_image(), must contain
+                  'image' (PIL Image).
+
+    Returns:
+        str: Freeform analytical interpretation in Bahasa Indonesia.
+    """
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        import subprocess
+        status_update("Installing google-generativeai...")
+        subprocess.check_call(['pip', 'install', 'google-generativeai', '-q'])
+        import google.generativeai as genai
+    from google.colab import userdata
+    genai.configure(api_key=userdata.get('GEMINI_API_KEY'))
+
+    # --- Guard: missing image ---
+    if map_data.get('image') is None:
+        return "Interpretasi visual tidak tersedia: gambar peta tidak ditemukan."
+
+    status_update("Generating visual interpretation")
+
+    # Convert PIL Image to PNG bytes
+    import io
+    buf = io.BytesIO()
+    map_data['image'].save(buf, format='PNG')
+    image_bytes = buf.getvalue()
+
+    prompt = (
+        "Kamu adalah analis cuaca BMKG yang ahli membaca peta.\n"
+        "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya.\n"
+        "Berikan interpretasi analitis dalam Bahasa Indonesia (1-2 paragraf).\n\n"
+        "Fokus pada:\n"
+        "- Pola distribusi spasial: di mana konsentrasi, gradien, atau anomali terlihat\n"
+        "- Kontras regional atau klaster yang menonjol\n"
+        "- Apa yang secara visual ditunjukkan peta ini\n\n"
+        "JANGAN mengulangi data persentase secara mekanis. "
+        "Fokuslah pada apa yang *terlihat* di peta secara visual."
+    )
+
+    model = genai.GenerativeModel('gemini-3-flash-preview')
+    response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
+    status_update("Visual interpretation complete")
+    return response.text
+
+
 def get_full_narration(map_data):
     """Generate narration for a BMKG map.
 
