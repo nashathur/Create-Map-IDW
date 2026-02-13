@@ -646,13 +646,13 @@ def get_visual_interpretation(map_data):
         )
 
     prompt = (
-        "Kamu adalah analis cuaca BMKG yang ahli membaca peta. "
-        "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya. "
-        "Berikan interpretasi analitis dalam Bahasa Indonesia, cukup 2-3 kalimat saja. "
-        "Fokus pada pola distribusi spasial, kontras regional, dan apa yang secara visual ditunjukkan peta. "
+        "Kamu adalah analis cuaca BMKG. "
+        "Perhatikan gambar peta berikut dan berikan interpretasi visual SINGKAT dalam Bahasa Indonesia. "
+        "HANYA 1-2 kalimat saja yang menjelaskan pola spasial utama yang terlihat di peta. "
+        "Kalimat harus bisa langsung menyambung narasi sebelumnya tanpa pengulangan periode atau judul. "
         "JANGAN mengarang angka atau persentase yang tidak ada dalam data referensi. "
-        "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading). "
-        "Tulis dalam teks polos karena ini untuk laporan."
+        "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading, asterisk). "
+        "Tulis dalam teks polos, singkat, dan padat."
         + grounding
     )
 
@@ -671,6 +671,6 @@ def get_full_narration(map_data):
     Returns:
         str: Combined narration as a single paragraph.
     """
-    structured = get_analysis(map_data)
-    visual = get_visual_interpretation(map_data)
-    return f"{structured} {visual}".strip()
+    structured = get_analysis(map_data).strip()
+    visual = get_visual_interpretation(map_data).strip()
+    return f"{structured} {visual}"
