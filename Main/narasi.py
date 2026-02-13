@@ -35,7 +35,7 @@ CATEGORY_PRIORITY = {
     '>30': 1, '21-30': 1, '11-20': 2, '6-10': 2, '1-5': 2,
     'Sesuai': 1, 'Tidak Sesuai': 1,
 }
-_HIGH_PRIORITY_THRESHOLD = 10.0
+_HIGH_PRIORITY_THRESHOLD = 5.0
 
 
 # =============================================================================
