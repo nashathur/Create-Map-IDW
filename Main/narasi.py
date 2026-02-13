@@ -594,7 +594,7 @@ def get_analysis(map_data):
     )
 
     # --- Generate ---
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-3-flash-preview')
     response = model.generate_content(prompt)
     status_update("AI narration complete")
     return response.text
@@ -642,7 +642,7 @@ def get_visual_interpretation(map_data):
         "Tulis dalam teks polos karena ini untuk laporan."
     )
 
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-3-flash-preview')
     response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
     status_update("Visual interpretation complete")
     return response.text
