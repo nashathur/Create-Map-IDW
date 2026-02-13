@@ -29,6 +29,14 @@ CATEGORY_DEFS = {
     ('HTH', 'Dasarian'): "Jumlah hari tanpa hujan berturut-turut",
 }
 
+CATEGORY_PRIORITY = {
+    'Sangat Tinggi': 1, 'Rendah': 1, 'Tinggi': 2, 'Menengah': 2,
+    'Atas Normal': 1, 'Bawah Normal': 1, 'Normal': 2,
+    '>30': 1, '21-30': 1, '11-20': 2, '6-10': 2, '1-5': 2,
+    'Sesuai': 1, 'Tidak Sesuai': 1,
+}
+_HIGH_PRIORITY_THRESHOLD = 10.0
+
 
 # =============================================================================
 # PERCENTAGE COMPUTATION
@@ -69,7 +77,10 @@ def _compute_all_percentages(province_data, kabupaten_data):
 
 
 def _format_kabupaten_by_category(kabupaten_pcts):
-    """Group kabupaten by their dominant category.
+    """Group kabupaten by category using priority-based dual logic.
+
+    Priority 1 categories (extreme): include any kabupaten with >= threshold%.
+    Priority 2 categories (normal/moderate): include only when dominant.
 
     Returns formatted string listing kabupaten names under each category.
     """
@@ -78,7 +89,12 @@ def _format_kabupaten_by_category(kabupaten_pcts):
         if not pcts:
             continue
         dominant = pcts[0][0]
+        # Always add kabupaten to its dominant category
         groups.setdefault(dominant, []).append(kab_name)
+        # For priority-1 categories, also add if >= threshold (non-dominant)
+        for cat, val in pcts[1:]:
+            if CATEGORY_PRIORITY.get(cat, 2) == 1 and val >= _HIGH_PRIORITY_THRESHOLD:
+                groups.setdefault(cat, []).append(kab_name)
 
     lines = []
     for cat, kabs in groups.items():
@@ -120,16 +136,16 @@ EXAMPLE_PAIRS = {
             "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Menengah: 35.7%, Sangat Tinggi: 10.0%, Rendah: 4.3%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 38.3%, Rendah: 10.6%, Sangat Tinggi: 8.5%\n"
             "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong Selatan\n"
             "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak\n"
             "Tinggi: Manokwari, Manokwari Selatan, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
+            "Sangat Tinggi: Pegunungan Arfak, Manokwari\n"
+            "Rendah: Sorong Selatan, Fak Fak"
         ),
         "output": (
             "Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi curah hujan "
             "Tinggi (300-500 mm) sebesar 50.0%, sementara Papua Barat Daya didominasi Menengah (100-300 mm) "
-            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak, "
-            "sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan."
+            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak "
+            "dan Manokwari, sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan dan Fak Fak."
         )
     },
 
@@ -210,17 +226,17 @@ EXAMPLE_PAIRS = {
             "Papua Barat (dominan: Menengah): Menengah: 42.9%, Tinggi: 40.0%, Sangat Tinggi: 10.0%, Rendah: 7.1%\n"
             "Papua Barat Daya (dominan: Menengah): Menengah: 38.3%, Tinggi: 34.0%, Rendah: 17.0%, Sangat Tinggi: 10.6%\n"
             "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong Selatan\n"
             "Menengah: Sorong, Raja Ampat, Teluk Wondama, Fak Fak\n"
             "Tinggi: Manokwari, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan"
+            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan, Manokwari\n"
+            "Rendah: Sorong Selatan, Fak Fak"
         ),
         "output": (
             "Analisis Curah Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
             "umumnya didominasi curah hujan Menengah (100-300 mm) sebesar 42.9% di Papua Barat dan "
-            "38.3% di Papua Barat Daya. Curah hujan Tinggi (300-500 mm) dan Sangat Tinggi (>500 mm) "
-            "tercatat di Kab. Manokwari, Pegunungan Arfak, dan Manokwari Selatan, sedangkan curah hujan "
-            "Rendah (0-100 mm) tercatat di Kab. Sorong Selatan."
+            "38.3% di Papua Barat Daya. Curah hujan Sangat Tinggi (>500 mm) tercatat di Kab. Pegunungan Arfak, "
+            "Manokwari Selatan, dan Manokwari, sedangkan curah hujan Rendah (0-100 mm) tercatat di Kab. "
+            "Sorong Selatan dan Fak Fak."
         )
     },
 
@@ -562,6 +578,7 @@ def get_analysis(map_data):
         "ATURAN:\n"
         "- Kalimat pertama: sebutkan dominan kategori per provinsi dengan RENTANG NILAI dan PERSENTASE.\n"
         "- Kalimat berikutnya: sebutkan nama kabupaten untuk kategori non-dominan, TANPA persentase.\n"
+        "- Sebutkan SEMUA kategori yang ada di data kabupaten, terutama kategori ekstrem.\n"
         "- Gunakan angka persentase PERSIS dari data, jangan hitung ulang.\n"
         "- Tulis teks polos tanpa formatting (tanpa bold, italic, bullet, heading).\n\n"
         f"Definisi kategori: {cat_str}\n\n"
@@ -573,56 +590,6 @@ def get_analysis(map_data):
     model = genai.GenerativeModel('gemini-3-flash-preview')
     response = model.generate_content(prompt)
     status_update("AI narration complete")
-    return response.text
-
-
-def get_visual_interpretation(map_data):
-    """Generate a freeform visual interpretation of a BMKG map image using Gemini.
-
-    Args:
-        map_data: dict returned by execute() or overlay_image(), must contain
-                  'image' (PIL Image).
-
-    Returns:
-        str: Freeform analytical interpretation in Bahasa Indonesia.
-    """
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        import subprocess
-        status_update("Installing google-generativeai...")
-        subprocess.check_call(['pip', 'install', 'google-generativeai', '-q'])
-        import google.generativeai as genai
-    from google.colab import userdata
-    genai.configure(api_key=userdata.get('GEMINI_API_KEY'))
-
-    # --- Guard: missing image ---
-    if map_data.get('image') is None:
-        return "Interpretasi visual tidak tersedia: gambar peta tidak ditemukan."
-
-    status_update("Generating visual interpretation")
-
-    # Convert PIL Image to PNG bytes
-    import io
-    buf = io.BytesIO()
-    map_data['image'].save(buf, format='PNG')
-    image_bytes = buf.getvalue()
-
-    prompt = (
-        "Kamu adalah analis cuaca BMKG yang ahli membaca peta.\n"
-        "Perhatikan gambar peta berikut termasuk legenda, label, judul, dan pola spasialnya.\n"
-        "Berikan interpretasi analitis dalam Bahasa Indonesia (1-2 paragraf).\n\n"
-        "Fokus pada:\n"
-        "- Pola distribusi spasial: di mana konsentrasi, gradien, atau anomali terlihat\n"
-        "- Kontras regional atau klaster yang menonjol\n"
-        "- Apa yang secara visual ditunjukkan peta ini\n\n"
-        "JANGAN mengulangi data persentase secara mekanis. "
-        "Fokuslah pada apa yang *terlihat* di peta secara visual."
-    )
-
-    model = genai.GenerativeModel('gemini-3-flash-preview')
-    response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
-    status_update("Visual interpretation complete")
     return response.text
 
 
