@@ -587,8 +587,7 @@ def get_analysis(map_data):
         "Kamu penulis narasi peta BMKG. "
         "Tulis narasi untuk data baru dengan STRUKTUR KALIMAT, GAYA, dan ALUR yang IDENTIK dengan contoh. "
         "Hanya ganti data, wilayah, dan periode sesuai data baru. "
-        "Gunakan semua angka persentase persis seperti yang diberikan, jangan hitung ulang. "
-        "PENTING: Tulis narasi sesingkat mungkin, maksimal 3-4 kalimat. Langsung ke inti tanpa pengulangan.\n\n"
+        "Gunakan semua angka persentase persis seperti yang diberikan, jangan hitung ulang.\n\n"
         f"Definisi kategori: {cat_str}\n\n"
         f"=== CONTOH ===\nInput:\n{example['input']}\n\nOutput:\n{example['output']}\n=== AKHIR CONTOH ===\n\n"
         f"=== DATA BARU ===\nInput:\n{current_input}\n\nOutput:"
@@ -664,14 +663,14 @@ def get_visual_interpretation(map_data):
 
 
 def get_full_narration(map_data):
-    """Generate both structured analysis and visual interpretation.
+    """Generate structured analysis with visual interpretation appended.
 
     Args:
         map_data: dict returned by execute() or overlay_image().
 
     Returns:
-        dict: {"structured": str, "visual": str}
+        str: Combined narration as a single paragraph.
     """
     structured = get_analysis(map_data)
     visual = get_visual_interpretation(map_data)
-    return {"structured": structured, "visual": visual}
+    return f"{structured} {visual}".strip()
