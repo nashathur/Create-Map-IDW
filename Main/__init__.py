@@ -10,7 +10,7 @@ from .map_creation import create_map, clear_spatial_cache
 from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
-from .narasi import get_analysis, get_visual_interpretation, get_full_narration
+from .narasi import get_analysis, get_full_narration
 from .word import arrange_word
 import time
 from .logger import log_execution
@@ -130,7 +130,6 @@ __all__ = [
     'get_hth',
     'status_update',
     'get_analysis',
-    'get_visual_interpretation',
     'get_full_narration',
     'arrange_word',
 ]
