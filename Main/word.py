@@ -9,7 +9,7 @@ import io
 from .config import cfg, CACHE_DIR
 from .utils import number_to_bulan, dasarian_romawi
 from .status import update as status_update
-from .narasi import get_analysis
+from .narasi import get_full_narration
 
 
 def arrange_word(map_data):
@@ -50,7 +50,7 @@ def arrange_word(map_data):
         desc = f'Peta {title1} {title2}'
 
         # Get AI narration
-        analysis = get_analysis(map_data)
+        analysis = get_full_narration(map_data)
 
         # Convert PIL Image to BytesIO buffer
         image_buffer = io.BytesIO()
