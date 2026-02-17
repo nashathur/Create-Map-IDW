@@ -18,14 +18,16 @@ def get_visual_interpretation(map_data):
         str: Freeform analytical interpretation in Bahasa Indonesia.
     """
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
     except ImportError:
         import subprocess
-        status_update("Installing google-generativeai...")
-        subprocess.check_call(['pip', 'install', 'google-generativeai', '-q'])
-        import google.generativeai as genai
+        status_update("Installing google-genai...")
+        subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
+        from google import genai
+        from google.genai import types
     from google.colab import userdata
-    genai.configure(api_key=userdata.get('GEMINI_API_KEY'))
+    client = genai.Client(api_key=userdata.get('GEMINI_API_KEY'))
 
     # --- Guard: missing image ---
     if map_data.get('image') is None:
@@ -63,7 +65,10 @@ def get_visual_interpretation(map_data):
         + grounding
     )
 
-    model = genai.GenerativeModel('gemini-3-flash-preview')
-    response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+    response = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=[prompt, image_part]
+    )
     status_update("Visual interpretation complete")
     return response.text
