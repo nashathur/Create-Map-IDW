@@ -521,8 +521,14 @@ def get_analysis(map_data):
         status_update("Installing google-genai...")
         subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
         from google import genai
-    from google.colab import userdata
-    client = genai.Client(api_key=userdata.get('GEMINI_API_KEY'))
+    api_key = cfg.gemini_api_key
+    if not api_key or api_key == "YOUR_API_KEY_HERE":
+        try:
+            from google.colab import userdata
+            api_key = userdata.get('GEMINI_API_KEY')
+        except Exception:
+            raise ValueError("Gemini API key not configured. Set cfg.gemini_api_key in config.py or add GEMINI_API_KEY to Colab Secrets.")
+    client = genai.Client(api_key=api_key)
     status_update("Generating AI narration")
 
     peta = map_data['peta']
@@ -614,8 +620,14 @@ def get_visual_interpretation(map_data):
         subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
         from google import genai
         from google.genai import types
-    from google.colab import userdata
-    client = genai.Client(api_key=userdata.get('GEMINI_API_KEY'))
+    api_key = cfg.gemini_api_key
+    if not api_key or api_key == "YOUR_API_KEY_HERE":
+        try:
+            from google.colab import userdata
+            api_key = userdata.get('GEMINI_API_KEY')
+        except Exception:
+            raise ValueError("Gemini API key not configured. Set cfg.gemini_api_key in config.py or add GEMINI_API_KEY to Colab Secrets.")
+    client = genai.Client(api_key=api_key)
 
     # --- Guard: missing image ---
     if map_data.get('image') is None:
