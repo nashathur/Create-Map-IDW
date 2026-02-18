@@ -40,7 +40,7 @@ class cfg:
     verif_mode = 'kuantitatif'    #kuantitatif or kualitatif
 
     # Gemini API key - replace with your key, or set via Colab Secrets
-    gemini_api_key = "YOUR_API_KEY_HERE"
+    gemini_api_key = "AIzaSyDiyNBsTPU228ql4JPIsO0fJyVudSVSY8c"
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 CACHE_DIR = "/content/static_data"
@@ -58,5 +58,6 @@ STATIC_FILES = {
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
     'template_doc.docx': f"{GITHUB_BASE}/template_doc.docx",
 }
+
 
 
