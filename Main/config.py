@@ -39,6 +39,9 @@ class cfg:
     create_word = False
     verif_mode = 'kuantitatif'    #kuantitatif or kualitatif
 
+    # Gemini API key - replace with your key, or set via Colab Secrets
+    gemini_api_key = "YOUR_API_KEY_HERE"
+
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 CACHE_DIR = "/content/static_data"
 
