@@ -27,14 +27,13 @@ from .processors import (
     load_hth,
 )
 
-download_static_files()
-
 __version__ = "1.0.0"
 
 
 def execute(peta, tipe, skala, month):
     """Execute map generation based on configuration."""
     start_time = time.time()
+    download_static_files()
 
     cfg.peta = peta
     cfg.tipe = tipe
