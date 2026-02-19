@@ -261,7 +261,7 @@ def overlay_image(plot_data):
         else:
             das_title = f".das{dasarian}"
             dasarian_ver_local = dasarian_ver
-        ver_title = f"_ver_{year_ver}.{month_ver:02d}{dasarian_ver_local}"
+        ver_title = f"_ver_{year_ver}.{month_ver:02d}" + (f".{dasarian_ver_local}" if dasarian_ver_local else "")
     else:
         das_title = ""
         ver_title = ""
