@@ -35,7 +35,7 @@ def download_static_files():
         status_update("Extracting fonts")
         with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
             z.extractall(CACHE_DIR)
-    status_update("All template files ready, waiting for uploaded files.")
+    #status_update("All template files ready, waiting for uploaded files.")
 
 
 # =============================================================================
@@ -210,3 +210,4 @@ def get_hgt_data():
             }
         status_update("hgt cached to memory")
     return _hgt_cache
+
