@@ -201,7 +201,7 @@ def _prepare_map_context(df, value, jenis, info):
     }
 
 
-def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=None):
+def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=None, joined_gdf=None):
     """Add overlays, ticks, save image, build plot_data dict, cleanup."""
     _setup_extent(ax, ctx['bounds'])
     _add_kabupaten_labels(ax, ctx['shp_main'])
@@ -232,6 +232,7 @@ def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=N
         'province_data': province_counts, 'kabupaten_data': kabupaten_counts,
         'image': img, 'file_name': ctx['file_name'],
         'nama_wilayah': ctx['nama_wilayah'],
+        'joined_gdf': joined_gdf,
     }
 
     if not cfg.png_only:
@@ -388,7 +389,7 @@ def create_map(df, value, jenis, color, levels, info):
         for spine in ax.spines.values():
             spine.set_linewidth(7)
 
-    plot_data = _finalize_map(fig, ax, ctx, levels, province_counts, kabupaten_counts)
+    plot_data = _finalize_map(fig, ax, ctx, levels, province_counts, kabupaten_counts, joined_gdf=joined)
 
     del clipped_data, interpolated
     return plot_data
@@ -426,7 +427,8 @@ def create_scatter_map(df, value, jenis, colors, info):
                 edgecolors='black', linewidths=0.5, zorder=5
             )
 
-    return _finalize_map(fig, ax, ctx, levels=list(colors.keys()))
+    joined = gpd.sjoin(clipped_gdf, ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
+    return _finalize_map(fig, ax, ctx, levels=list(colors.keys()), joined_gdf=joined)
 
 
 

@@ -23,6 +23,7 @@ class cfg:
     
     # Display options
     hgt = False
+    export_csv = False
     
     # File paths (set after upload)
     file_prakiraan = None
