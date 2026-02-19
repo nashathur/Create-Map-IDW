@@ -703,16 +703,6 @@ def get_full_narration(map_data):
 # TABLE DATA GENERATION
 # =============================================================================
 
-HTH_KLASIFIKASI = {
-    1: 'Sangat Pendek',
-    2: 'Pendek',
-    3: 'Menengah',
-    4: 'Panjang',
-    5: 'Sangat Panjang',
-    6: 'Kekeringan Ekstrim',
-}
-
-
 def build_table_data(map_data):
     """Build table data for the Word document report.
 
@@ -812,44 +802,5 @@ def _build_kriteria_table(map_data):
 
 
 def _build_hth_table(map_data):
-    """Build HTH station-level table.
-
-    Columns: Provinsi, Kabupaten, [Kecamatan], [Pos Hujan], Indeks HTH.
-    Excludes stations with index 0 (Masih Ada Hujan).
-    """
-    joined_gdf = map_data.get('joined_gdf')
-    if joined_gdf is None or len(joined_gdf) == 0:
-        return None
-
-    df = joined_gdf[joined_gdf['INDEKS_HTH'] != 0].copy()
-    if len(df) == 0:
-        return None
-
-    df['KLASIFIKASI'] = df['INDEKS_HTH'].map(HTH_KLASIFIKASI)
-
-    # Build column list — always Provinsi + Kabupaten, optionally Kecamatan/Pos
-    columns = ['Provinsi', 'Kabupaten']
-    col_keys = ['PROVINSI', 'KABUPATEN']
-
-    if 'KECAMATAN' in df.columns and df['KECAMATAN'].notna().any():
-        columns.append('Kecamatan')
-        col_keys.append('KECAMATAN')
-    if 'POS' in df.columns and df['POS'].notna().any():
-        columns.append('Pos Hujan')
-        col_keys.append('POS')
-
-    columns.append('Indeks HTH')
-
-    # Sort by province → kabupaten → severity
-    df = df.sort_values(['PROVINSI', 'KABUPATEN', 'INDEKS_HTH'])
-
-    rows = []
-    for _, row in df.iterrows():
-        r = [str(row.get(ck, '')) for ck in col_keys]
-        r.append(str(row.get('KLASIFIKASI', '')))
-        rows.append(r)
-
-    return {
-        'columns': columns,
-        'rows': rows,
-    }
+    """Return pre-computed HTH table data (built in map_creation.py)."""
+    return map_data.get('hth_table_data')

@@ -201,7 +201,7 @@ def _prepare_map_context(df, value, jenis, info):
     }
 
 
-def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=None, joined_gdf=None):
+def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=None, joined_gdf=None, hth_table_data=None):
     """Add overlays, ticks, save image, build plot_data dict, cleanup."""
     _setup_extent(ax, ctx['bounds'])
     _add_kabupaten_labels(ax, ctx['shp_main'])
@@ -233,6 +233,7 @@ def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=N
         'image': img, 'file_name': ctx['file_name'],
         'nama_wilayah': ctx['nama_wilayah'],
         'joined_gdf': joined_gdf,
+        'hth_table_data': hth_table_data,
     }
 
     if not cfg.png_only:
@@ -396,6 +397,58 @@ def create_map(df, value, jenis, color, levels, info):
 
 
 # =============================================================================
+# HTH TABLE HELPER
+# =============================================================================
+
+_HTH_KLASIFIKASI = {
+    1: 'Sangat Pendek',
+    2: 'Pendek',
+    3: 'Menengah',
+    4: 'Panjang',
+    5: 'Sangat Panjang',
+    6: 'Kekeringan Ekstrim',
+}
+
+
+def _build_hth_rows(joined):
+    """Build lightweight HTH table data from the spatial-joined GeoDataFrame.
+
+    Filters out index 0 (Masih Ada Hujan), maps indices to klasifikasi names,
+    and detects optional KECAMATAN/POS columns.
+
+    Returns:
+        dict with 'columns' and 'rows', or None if no data after filtering.
+    """
+    df = joined[joined['INDEKS_HTH'] != 0].copy()
+    if len(df) == 0:
+        return None
+
+    df['KLASIFIKASI'] = df['INDEKS_HTH'].map(_HTH_KLASIFIKASI)
+
+    columns = ['Provinsi', 'Kabupaten']
+    col_keys = ['PROVINSI', 'KABUPATEN']
+
+    if 'KECAMATAN' in df.columns and df['KECAMATAN'].notna().any():
+        columns.append('Kecamatan')
+        col_keys.append('KECAMATAN')
+    if 'POS' in df.columns and df['POS'].notna().any():
+        columns.append('Pos Hujan')
+        col_keys.append('POS')
+
+    columns.append('Indeks HTH')
+
+    df = df.sort_values(['PROVINSI', 'KABUPATEN', 'INDEKS_HTH'])
+
+    rows = []
+    for _, row in df.iterrows():
+        r = [str(row.get(ck, '')) for ck in col_keys]
+        r.append(str(row.get('KLASIFIKASI', '')))
+        rows.append(r)
+
+    return {'columns': columns, 'rows': rows}
+
+
+# =============================================================================
 # PUBLIC: SCATTER MAP (categorical points)
 # =============================================================================
 
@@ -428,7 +481,14 @@ def create_scatter_map(df, value, jenis, colors, info):
             )
 
     joined = gpd.sjoin(clipped_gdf, ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
-    return _finalize_map(fig, ax, ctx, levels=list(colors.keys()), joined_gdf=joined)
+
+    # Pre-compute HTH table data if Word output is requested
+    hth_table = None
+    if cfg.create_word and cfg.peta == 'HTH':
+        hth_table = _build_hth_rows(joined)
+
+    return _finalize_map(fig, ax, ctx, levels=list(colors.keys()), joined_gdf=joined,
+                         hth_table_data=hth_table)
 
 
 
