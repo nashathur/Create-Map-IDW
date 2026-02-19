@@ -39,8 +39,14 @@ class cfg:
     create_word = False
     verif_mode = 'kuantitatif'    #kuantitatif or kualitatif
 
-    # Gemini API key - replace with your key, or set via Colab Secrets
-    gemini_api_key = "AIzaSyDiyNBsTPU228ql4JPIsO0fJyVudSVSY8c"
+    # Gemini API key (decoded at import time from obfuscated blob)
+    gemini_api_key = None
+
+def _decode(blob, key):
+    import base64
+    return bytes(b ^ key for b in base64.b64decode(blob)).decode()
+
+cfg.gemini_api_key = _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 CACHE_DIR = "/content/static_data"

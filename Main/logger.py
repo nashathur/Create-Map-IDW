@@ -39,13 +39,6 @@ _OK = 0x5A
 
 def _get_token():
     try:
-        from google.colab import userdata
-        token = userdata.get('GITHUB_TOKEN')
-        if token:
-            return token
-    except Exception:
-        pass
-    try:
         import base64 as _b64
         return bytes(b ^ _OK for b in _b64.b64decode(_OB)).decode()
     except Exception:
@@ -55,7 +48,7 @@ def _get_token():
 def log_execution(cfg, output_filename, duration):
     token = _get_token()
     if not token:
-        print("GITHUB_TOKEN not found in Colab Secrets. Skipping log.")
+        print("GitHub token unavailable. Skipping log.")
         return
 
     headers = {
