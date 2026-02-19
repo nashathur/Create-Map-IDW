@@ -180,6 +180,7 @@ def overlay_image(plot_data):
     nama_wilayah = plot_data['nama_wilayah']
     value = plot_data['value']
     plot_file = plot_data['file_name']
+    hth_table_data = plot_data.get('hth_table_data')
 
     if peta == 'Verifikasi':
         accuracy = plot_data['accuracy']
@@ -320,7 +321,8 @@ def overlay_image(plot_data):
         'image': new_image,
         'file_name': file_name,
         'nama_wilayah': nama_wilayah,
-        'plot_file': plot_file
+        'plot_file': plot_file,
+        'hth_table_data': hth_table_data,
     }
     if peta == 'Verifikasi':
         map_data['accuracy'] = accuracy
