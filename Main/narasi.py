@@ -697,3 +697,159 @@ def get_full_narration(map_data):
     if visual and not visual.startswith("Interpretasi visual tidak tersedia"):
         return f"{analysis} {visual}"
     return analysis
+
+
+# =============================================================================
+# TABLE DATA GENERATION
+# =============================================================================
+
+HTH_KLASIFIKASI = {
+    1: 'Sangat Pendek',
+    2: 'Pendek',
+    3: 'Menengah',
+    4: 'Panjang',
+    5: 'Sangat Panjang',
+    6: 'Kekeringan Ekstrim',
+}
+
+
+def build_table_data(map_data):
+    """Build table data for the Word document report.
+
+    For standard maps (CH, SH, Verifikasi, etc.): produces a KRITERIA vs DAERAH
+    table where each row is a category and its associated kabupaten list.
+
+    For HTH maps: produces a station-level table with Provinsi, Kabupaten,
+    optional Kecamatan/Pos, and the HTH classification name.
+
+    Skips table for Probabilistik maps and kabupaten-level wilayah.
+
+    Args:
+        map_data: dict returned by overlay_image().
+
+    Returns:
+        dict with 'columns' (list[str]) and 'rows' (list[list[str]]),
+        or None if no table should be generated.
+    """
+    peta = map_data.get('peta')
+
+    # Skip for Probabilistik
+    if peta == 'Probabilistik':
+        return None
+
+    # Skip if wilayah is kabupaten-level (no meaningful sub-breakdown)
+    nama_wilayah = map_data.get('nama_wilayah', '')
+    if 'Provinsi' not in nama_wilayah:
+        return None
+
+    if peta == 'HTH':
+        return _build_hth_table(map_data)
+    return _build_kriteria_table(map_data)
+
+
+def _kriteria_column_name(peta, tipe):
+    """Determine the KRITERIA column header based on map/data type."""
+    if peta == 'Verifikasi':
+        return 'Verifikasi'
+    if tipe == 'Curah Hujan':
+        return 'Curah Hujan (mm)'
+    if tipe == 'Sifat Hujan':
+        return 'Sifat Hujan (%)'
+    return tipe or 'Kriteria'
+
+
+def _build_kriteria_table(map_data):
+    """Build KRITERIA vs DAERAH table for standard (non-HTH) maps.
+
+    Each kabupaten is assigned to its *dominant* category (the category with the
+    highest station count).  Rows follow the original category order from
+    count_points so that the table reads from low → high severity.
+    """
+    kabupaten_data = map_data.get('kabupaten_data')
+    if not kabupaten_data:
+        return None
+
+    peta = map_data.get('peta')
+    tipe = map_data.get('tipe')
+    col_name = _kriteria_column_name(peta, tipe)
+
+    # Classify each kabupaten by dominant category
+    category_to_kabs = {}
+    for kab_name, counts in kabupaten_data.items():
+        if counts.get('total', 0) == 0:
+            continue
+        dominant = max(
+            ((cat, cnt) for cat, cnt in counts.items() if cat != 'total'),
+            key=lambda x: x[1],
+        )[0]
+        category_to_kabs.setdefault(dominant, []).append(kab_name)
+
+    if not category_to_kabs:
+        return None
+
+    # Preserve original category order from the first kabupaten's count dict
+    first_counts = next(iter(kabupaten_data.values()))
+    cat_order = [k for k in first_counts if k != 'total']
+
+    rows = []
+    for cat in cat_order:
+        kabs = category_to_kabs.get(cat)
+        if kabs:
+            rows.append([cat, ', '.join(sorted(kabs))])
+
+    # Include any extra categories not present in the original order
+    for cat, kabs in category_to_kabs.items():
+        if cat not in cat_order:
+            rows.append([cat, ', '.join(sorted(kabs))])
+
+    if not rows:
+        return None
+
+    return {
+        'columns': [col_name, 'Daerah'],
+        'rows': rows,
+    }
+
+
+def _build_hth_table(map_data):
+    """Build HTH station-level table.
+
+    Columns: Provinsi, Kabupaten, [Kecamatan], [Pos Hujan], Indeks HTH.
+    Excludes stations with index 0 (Masih Ada Hujan).
+    """
+    joined_gdf = map_data.get('joined_gdf')
+    if joined_gdf is None or len(joined_gdf) == 0:
+        return None
+
+    df = joined_gdf[joined_gdf['INDEKS_HTH'] != 0].copy()
+    if len(df) == 0:
+        return None
+
+    df['KLASIFIKASI'] = df['INDEKS_HTH'].map(HTH_KLASIFIKASI)
+
+    # Build column list — always Provinsi + Kabupaten, optionally Kecamatan/Pos
+    columns = ['Provinsi', 'Kabupaten']
+    col_keys = ['PROVINSI', 'KABUPATEN']
+
+    if 'KECAMATAN' in df.columns and df['KECAMATAN'].notna().any():
+        columns.append('Kecamatan')
+        col_keys.append('KECAMATAN')
+    if 'POS' in df.columns and df['POS'].notna().any():
+        columns.append('Pos Hujan')
+        col_keys.append('POS')
+
+    columns.append('Indeks HTH')
+
+    # Sort by province → kabupaten → severity
+    df = df.sort_values(['PROVINSI', 'KABUPATEN', 'INDEKS_HTH'])
+
+    rows = []
+    for _, row in df.iterrows():
+        r = [str(row.get(ck, '')) for ck in col_keys]
+        r.append(str(row.get('KLASIFIKASI', '')))
+        rows.append(r)
+
+    return {
+        'columns': columns,
+        'rows': rows,
+    }
