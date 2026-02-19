@@ -9,4 +9,4 @@ def set_callback(fn):
 def update(message):
     if _callback:
         _callback(message)
-    print(message)
+    print(f"\r{message}\033[K", end="", flush=True)
