@@ -597,7 +597,7 @@ def get_analysis(map_data):
     return response.text
 
 
-def get_visual_interpretation(map_data):
+def get_visual_interpretation(map_data, analysis_text=None):
     """Generate a freeform visual interpretation of a BMKG map image using Gemini.
 
     Args:
@@ -646,15 +646,28 @@ def get_visual_interpretation(map_data):
             + _format_percentages(pct_data)
         )
 
+    # Include prior analysis text so Gemini avoids repeating it
+    prior_context = ""
+    if analysis_text:
+        prior_context = (
+            "\n\nBerikut adalah narasi analisis yang SUDAH ditulis sebelumnya. "
+            "JANGAN ulangi informasi yang sudah disebutkan di narasi ini. "
+            "Tulislah kalimat yang MELENGKAPI narasi berikut, fokus pada pola spasial "
+            "yang BELUM disebutkan:\n"
+            f'"""{analysis_text}"""'
+        )
+
     prompt = (
         "Kamu adalah analis cuaca BMKG. "
         "Perhatikan gambar peta berikut dan berikan interpretasi visual SINGKAT dalam Bahasa Indonesia. "
         "HANYA 1-2 kalimat saja yang menjelaskan pola spasial utama yang terlihat di peta. "
         "Kalimat harus bisa langsung menyambung narasi sebelumnya tanpa pengulangan periode atau judul. "
         "JANGAN mengarang angka atau persentase yang tidak ada dalam data referensi. "
+        "JANGAN ulangi kategori, persentase, atau nama wilayah yang sudah disebutkan di narasi sebelumnya. "
         "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading, asterisk). "
         "Tulis dalam teks polos, singkat, dan padat."
         + grounding
+        + prior_context
     )
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
@@ -679,8 +692,115 @@ def get_full_narration(map_data):
         str: Combined narration paragraph (analysis + visual interpretation).
     """
     analysis = get_analysis(map_data)
-    visual = get_visual_interpretation(map_data)
+    visual = get_visual_interpretation(map_data, analysis_text=analysis)
 
     if visual and not visual.startswith("Interpretasi visual tidak tersedia"):
         return f"{analysis} {visual}"
     return analysis
+
+
+# =============================================================================
+# TABLE DATA GENERATION
+# =============================================================================
+
+def build_table_data(map_data):
+    """Build table data for the Word document report.
+
+    For standard maps (CH, SH, Verifikasi, etc.): produces a KRITERIA vs DAERAH
+    table where each row is a category and its associated kabupaten list.
+
+    For HTH maps: produces a station-level table with Provinsi, Kabupaten,
+    optional Kecamatan/Pos, and the HTH classification name.
+
+    Skips table for Probabilistik maps and kabupaten-level wilayah.
+
+    Args:
+        map_data: dict returned by overlay_image().
+
+    Returns:
+        dict with 'columns' (list[str]) and 'rows' (list[list[str]]),
+        or None if no table should be generated.
+    """
+    peta = map_data.get('peta')
+
+    # Skip for Probabilistik
+    if peta == 'Probabilistik':
+        return None
+
+    # Skip if wilayah is kabupaten-level (no meaningful sub-breakdown)
+    nama_wilayah = map_data.get('nama_wilayah', '')
+    if 'Provinsi' not in nama_wilayah:
+        return None
+
+    if peta == 'HTH':
+        return _build_hth_table(map_data)
+    return _build_kriteria_table(map_data)
+
+
+def _kriteria_column_name(peta, tipe):
+    """Determine the KRITERIA column header based on map/data type."""
+    if peta == 'Verifikasi':
+        return 'Verifikasi'
+    if tipe == 'Curah Hujan':
+        return 'Curah Hujan (mm)'
+    if tipe == 'Sifat Hujan':
+        return 'Sifat Hujan (%)'
+    return tipe or 'Kriteria'
+
+
+def _build_kriteria_table(map_data):
+    """Build KRITERIA vs DAERAH table for standard (non-HTH) maps.
+
+    Each kabupaten is assigned to its *dominant* category (the category with the
+    highest station count).  Rows follow the original category order from
+    count_points so that the table reads from low → high severity.
+    """
+    kabupaten_data = map_data.get('kabupaten_data')
+    if not kabupaten_data:
+        return None
+
+    peta = map_data.get('peta')
+    tipe = map_data.get('tipe')
+    col_name = _kriteria_column_name(peta, tipe)
+
+    # Classify each kabupaten by dominant category
+    category_to_kabs = {}
+    for kab_name, counts in kabupaten_data.items():
+        if counts.get('total', 0) == 0:
+            continue
+        dominant = max(
+            ((cat, cnt) for cat, cnt in counts.items() if cat != 'total'),
+            key=lambda x: x[1],
+        )[0]
+        category_to_kabs.setdefault(dominant, []).append(kab_name)
+
+    if not category_to_kabs:
+        return None
+
+    # Preserve original category order from the first kabupaten's count dict
+    first_counts = next(iter(kabupaten_data.values()))
+    cat_order = [k for k in first_counts if k != 'total']
+
+    rows = []
+    for cat in cat_order:
+        kabs = category_to_kabs.get(cat)
+        if kabs:
+            rows.append([cat, ', '.join(sorted(kabs))])
+
+    # Include any extra categories not present in the original order
+    for cat, kabs in category_to_kabs.items():
+        if cat not in cat_order:
+            rows.append([cat, ', '.join(sorted(kabs))])
+
+    if not rows:
+        return None
+
+    return {
+        'columns': [col_name, 'Daerah'],
+        'rows': rows,
+    }
+
+
+def _build_hth_table(map_data):
+    """Return pre-computed HTH table data (built in map_creation.py)."""
+    return map_data.get('hth_table_data')

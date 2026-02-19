@@ -54,6 +54,10 @@ def load_hth():
             col_map[col] = 'INDEKS_HTH'
         elif cu == 'HTH':
             col_map[col] = 'HTH'
+        elif cu in ('KECAMATAN', 'KEC', 'KEC.'):
+            col_map[col] = 'KECAMATAN'
+        elif cu in ('POS', 'POS HUJAN', 'POS_HUJAN', 'STASIUN'):
+            col_map[col] = 'POS'
 
     df = df.rename(columns=col_map)
 
