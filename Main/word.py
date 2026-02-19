@@ -131,7 +131,7 @@ def arrange_word(map_data):
         output_path = f'/content/Laporan {peta} {tipe}.docx'
         doc.save(output_path)
 
-        status_update(f"Word document saved: {output_path}")
+        status_update(f"Word exported: {os.path.basename(output_path)}")
         files.download(output_path)
 
         return output_path
