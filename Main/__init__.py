@@ -6,7 +6,7 @@ Create-Map-IDW - Weather Map Generation Package for BMKG
 from .config import cfg, CACHE_DIR
 from .static import download_static_files, clear_basemap_cache
 from .utils import load_prakiraan, load_analisis, clear_data_cache
-from .map_creation import create_map, clear_spatial_cache
+from .map_creation import create_map, clear_spatial_cache, _export_csv
 from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
@@ -28,49 +28,6 @@ from .processors import (
 )
 
 __version__ = "1.0.0"
-
-
-def _export_csv(plot_data):
-    """Export station-level data from plot_data as CSV and auto-download in Colab."""
-    import os
-    import pandas as pd
-
-    joined_gdf = plot_data.get('joined_gdf')
-    if joined_gdf is None or len(joined_gdf) == 0:
-        print("No data available for CSV export.")
-        return
-
-    value_col = plot_data.get('value')
-    keep_cols = ['LON', 'LAT']
-    if value_col and value_col in joined_gdf.columns:
-        keep_cols.append(value_col)
-    if 'PROVINSI' in joined_gdf.columns:
-        keep_cols.append('PROVINSI')
-    if 'KABUPATEN' in joined_gdf.columns:
-        keep_cols.append('KABUPATEN')
-
-    # Include any other numeric data columns present (but not index columns from sjoin)
-    skip = {'index_right', 'index_left', 'geometry'}
-    for col in joined_gdf.columns:
-        if col not in keep_cols and col not in skip:
-            if joined_gdf[col].dtype.kind in ('f', 'i'):
-                keep_cols.append(col)
-
-    export_df = joined_gdf[[c for c in keep_cols if c in joined_gdf.columns]].copy()
-    export_df = export_df.reset_index(drop=True)
-
-    png_name = plot_data.get('file_name', 'export')
-    csv_name = os.path.splitext(png_name)[0] + '.csv'
-    csv_path = os.path.join('/content', csv_name)
-
-    export_df.to_csv(csv_path, index=False)
-    print(f"CSV exported: {csv_name} ({len(export_df)} rows)")
-
-    try:
-        from google.colab import files
-        files.download(csv_path)
-    except ImportError:
-        print(f"Not running in Google Colab. CSV saved to: {csv_path}")
 
 
 def execute(peta, tipe, skala, month):
