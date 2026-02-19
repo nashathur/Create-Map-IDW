@@ -597,7 +597,7 @@ def get_analysis(map_data):
     return response.text
 
 
-def get_visual_interpretation(map_data):
+def get_visual_interpretation(map_data, analysis_text=None):
     """Generate a freeform visual interpretation of a BMKG map image using Gemini.
 
     Args:
@@ -646,15 +646,28 @@ def get_visual_interpretation(map_data):
             + _format_percentages(pct_data)
         )
 
+    # Include prior analysis text so Gemini avoids repeating it
+    prior_context = ""
+    if analysis_text:
+        prior_context = (
+            "\n\nBerikut adalah narasi analisis yang SUDAH ditulis sebelumnya. "
+            "JANGAN ulangi informasi yang sudah disebutkan di narasi ini. "
+            "Tulislah kalimat yang MELENGKAPI narasi berikut, fokus pada pola spasial "
+            "yang BELUM disebutkan:\n"
+            f'"""{analysis_text}"""'
+        )
+
     prompt = (
         "Kamu adalah analis cuaca BMKG. "
         "Perhatikan gambar peta berikut dan berikan interpretasi visual SINGKAT dalam Bahasa Indonesia. "
         "HANYA 1-2 kalimat saja yang menjelaskan pola spasial utama yang terlihat di peta. "
         "Kalimat harus bisa langsung menyambung narasi sebelumnya tanpa pengulangan periode atau judul. "
         "JANGAN mengarang angka atau persentase yang tidak ada dalam data referensi. "
+        "JANGAN ulangi kategori, persentase, atau nama wilayah yang sudah disebutkan di narasi sebelumnya. "
         "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading, asterisk). "
         "Tulis dalam teks polos, singkat, dan padat."
         + grounding
+        + prior_context
     )
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
@@ -679,7 +692,7 @@ def get_full_narration(map_data):
         str: Combined narration paragraph (analysis + visual interpretation).
     """
     analysis = get_analysis(map_data)
-    visual = get_visual_interpretation(map_data)
+    visual = get_visual_interpretation(map_data, analysis_text=analysis)
 
     if visual and not visual.startswith("Interpretasi visual tidak tersedia"):
         return f"{analysis} {visual}"
