@@ -529,7 +529,7 @@ def _export_csv(plot_data):
     csv_path = os.path.join('/content', csv_name)
 
     export_df.to_csv(csv_path, index=False)
-    print(f"CSV exported: {csv_name} ({len(export_df)} rows)")
+    status_update(f"CSV exported: {csv_name} ({len(export_df)} rows)")
 
     try:
         from google.colab import files
