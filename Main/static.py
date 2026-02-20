@@ -4,6 +4,7 @@ Static file management: downloads, fonts, basemap, elevation data.
 """
 
 import os
+import time
 import urllib.request
 import zipfile
 
@@ -75,17 +76,28 @@ _idkab_cache = None
 _hgt_cache = None
 
 
-def redownload(filename):
-    """Delete and re-download a static file from the configured URL."""
+def redownload(filename, max_retries=4):
+    """Delete and re-download a static file with exponential backoff."""
     filepath = os.path.join(CACHE_DIR, filename)
     url = STATIC_FILES.get(filename)
     if url is None:
         raise FileNotFoundError(f"No download URL configured for {filename}")
-    status_update(f"Re-downloading {filename}")
     os.makedirs(CACHE_DIR, exist_ok=True)
     if os.path.exists(filepath):
         os.remove(filepath)
-    urllib.request.urlretrieve(url, filepath)
+    for attempt in range(1, max_retries + 1):
+        try:
+            status_update(f"Downloading {filename} (attempt {attempt}/{max_retries})")
+            urllib.request.urlretrieve(url, filepath)
+            return
+        except Exception:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            if attempt == max_retries:
+                raise
+            delay = 2 ** attempt
+            status_update(f"Download failed, retrying in {delay}s")
+            time.sleep(delay)
 
 
 def load_idkab():
