@@ -34,7 +34,19 @@ def _build_table_subdoc(doc, table_data):
     num_rows = len(table_data['rows']) + 1  # +1 for header
 
     table = sd.add_table(rows=num_rows, cols=num_cols)
-    table.style = 'Table Grid'
+
+    # Apply borders via XML (subdocuments don't have built-in Word styles)
+    tbl = table._tbl
+    tblPr = tbl.tblPr if tbl.tblPr is not None else OxmlElement('w:tblPr')
+    borders = OxmlElement('w:tblBorders')
+    for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+        el = OxmlElement(f'w:{edge}')
+        el.set(qn('w:val'), 'single')
+        el.set(qn('w:sz'), '4')
+        el.set(qn('w:space'), '0')
+        el.set(qn('w:color'), '000000')
+        borders.append(el)
+    tblPr.append(borders)
 
     # ---- Header row ----
     for j, col_name in enumerate(table_data['columns']):
