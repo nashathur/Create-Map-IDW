@@ -62,6 +62,39 @@ def _build_table_subdoc(doc, table_data):
     return sd
 
 
+def _print_fallback(title1, title2, analysis, table_data):
+    """Print narration and table to console as a fallback."""
+    has_content = analysis or table_data
+    if not has_content:
+        return
+
+    print("\n" + "=" * 60)
+    print(f"  {title1} {title2}")
+    print("=" * 60)
+
+    if analysis:
+        print(f"\n{analysis}\n")
+
+    if table_data:
+        columns = table_data['columns']
+        rows = table_data['rows']
+        # Compute column widths
+        col_widths = [len(c) for c in columns]
+        for row in rows:
+            for j, val in enumerate(row):
+                col_widths[j] = max(col_widths[j], len(val))
+
+        def fmt_row(vals):
+            return ' | '.join(v.ljust(col_widths[j]) for j, v in enumerate(vals))
+
+        header = fmt_row(columns)
+        print(header)
+        print('-+-'.join('-' * w for w in col_widths))
+        for row in rows:
+            print(fmt_row(row))
+        print()
+
+
 def arrange_word(map_data):
     """Generate a Word document report from map data.
 
@@ -72,35 +105,47 @@ def arrange_word(map_data):
     Returns:
         str: Output file path on success, None on failure.
     """
+    peta = map_data['peta']
+    tipe = map_data['tipe']
+    skala = map_data['skala']
+    year = map_data['year']
+    month = map_data['month']
+
+    # Build title and period strings
+    title1 = f'{peta} {tipe}'
+    if skala == 'Bulanan':
+        title2 = f'Bulan {number_to_bulan(month)} {year}'
+    else:
+        title2 = (f'Bulan {number_to_bulan(month)} '
+                   f'Dasarian {dasarian_romawi(map_data["dasarian"])} {year}')
+
+    # Compute narration and table data before any docx work so they
+    # are available for the console fallback if Word generation fails.
+    analysis = None
+    table_data = None
+    try:
+        analysis = get_full_narration(map_data)
+        table_data = build_table_data(map_data)
+    except Exception:
+        pass  # best-effort; failures handled in fallback below
+
     try:
         try:
             from docxtpl import DocxTemplate, InlineImage
+            import docxcompose  # noqa: F401 – verify dependency is available
         except ImportError:
             import subprocess
             status_update("Installing docxtpl...")
-            subprocess.check_call(['pip', 'install', 'docxtpl', '-q'])
+            subprocess.check_call(
+                ['pip', 'install', 'docxtpl', 'docxcompose', '-q']
+            )
             from docxtpl import DocxTemplate, InlineImage
         from docx.shared import Cm
         from google.colab import files
 
         status_update("Generating Word document...")
 
-        peta = map_data['peta']
-        tipe = map_data['tipe']
-        skala = map_data['skala']
-        year = map_data['year']
-        month = map_data['month']
-
-        # Build title and period strings
-        title1 = f'{peta} {tipe}'
-        if skala == 'Bulanan':
-            title2 = f'Bulan {number_to_bulan(month)} {year}'
-        else:
-            title2 = f'Bulan {number_to_bulan(month)} Dasarian {dasarian_romawi(map_data["dasarian"])} {year}'
         desc = f'Peta {title1} {title2}'
-
-        # Get AI narration
-        analysis = get_full_narration(map_data)
 
         # Convert PIL Image to BytesIO buffer
         image_buffer = io.BytesIO()
@@ -112,7 +157,6 @@ def arrange_word(map_data):
         doc = DocxTemplate(template_path)
 
         # Build table for text2 field (if applicable)
-        table_data = build_table_data(map_data)
         if table_data:
             text2_content = _build_table_subdoc(doc, table_data)
         else:
@@ -122,7 +166,7 @@ def arrange_word(map_data):
             'title1': f'{title1} {title2}',
             'image1': InlineImage(doc, image_buffer, width=Cm(15)),
             'desc': desc,
-            'text1': analysis,
+            'text1': analysis or '',
             'text2': text2_content,
         }
 
@@ -144,8 +188,10 @@ def arrange_word(map_data):
                     "Error generating Word document: Gemini API unavailable "
                     "after retries. Try again in a few minutes."
                 )
+                _print_fallback(title1, title2, analysis, table_data)
                 return None
         except ImportError:
             pass
         print(f"Error generating Word document: {e}")
+        _print_fallback(title1, title2, analysis, table_data)
         return None
