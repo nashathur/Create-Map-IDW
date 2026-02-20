@@ -137,5 +137,15 @@ def arrange_word(map_data):
         return output_path
 
     except Exception as e:
+        try:
+            from google.genai.errors import ServerError
+            if isinstance(e, ServerError):
+                print(
+                    "Error generating Word document: Gemini API unavailable "
+                    "after retries. Try again in a few minutes."
+                )
+                return None
+        except ImportError:
+            pass
         print(f"Error generating Word document: {e}")
         return None
