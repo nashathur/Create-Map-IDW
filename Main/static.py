@@ -69,12 +69,30 @@ _idkab_cache = None
 _hgt_cache = None
 
 
+def _download_idkab():
+    """Download (or re-download) idkab.feather from the configured URL."""
+    filepath = os.path.join(CACHE_DIR, "idkab.feather")
+    url = STATIC_FILES.get("idkab.feather")
+    if url is None:
+        raise FileNotFoundError("No download URL configured for idkab.feather")
+    status_update("Downloading idkab.feather")
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    urllib.request.urlretrieve(url, filepath)
+
+
 def load_idkab():
     global _idkab_cache
     if _idkab_cache is None:
         status_update("Loading idkab feather")
         filepath = os.path.join(CACHE_DIR, "idkab.feather")
-        _idkab_cache = gpd.read_feather(filepath)
+        try:
+            _idkab_cache = gpd.read_feather(filepath)
+        except Exception:
+            status_update("idkab.feather is missing or corrupted, re-downloading")
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            _download_idkab()
+            _idkab_cache = gpd.read_feather(filepath)
         status_update("feather loaded")
     return _idkab_cache
 
