@@ -33,8 +33,14 @@ def download_static_files():
     fonts_dir = os.path.join(CACHE_DIR, "fonts")
     if not os.path.exists(fonts_dir):
         status_update("Extracting fonts")
-        with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
-            z.extractall(CACHE_DIR)
+        try:
+            with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
+                z.extractall(CACHE_DIR)
+        except Exception:
+            status_update("arial.zip is corrupted, re-downloading")
+            redownload("arial.zip")
+            with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
+                z.extractall(CACHE_DIR)
     #status_update("All template files ready, waiting for uploaded files.")
 
 
@@ -69,14 +75,16 @@ _idkab_cache = None
 _hgt_cache = None
 
 
-def _download_idkab():
-    """Download (or re-download) idkab.feather from the configured URL."""
-    filepath = os.path.join(CACHE_DIR, "idkab.feather")
-    url = STATIC_FILES.get("idkab.feather")
+def redownload(filename):
+    """Delete and re-download a static file from the configured URL."""
+    filepath = os.path.join(CACHE_DIR, filename)
+    url = STATIC_FILES.get(filename)
     if url is None:
-        raise FileNotFoundError("No download URL configured for idkab.feather")
-    status_update("Downloading idkab.feather")
+        raise FileNotFoundError(f"No download URL configured for {filename}")
+    status_update(f"Re-downloading {filename}")
     os.makedirs(CACHE_DIR, exist_ok=True)
+    if os.path.exists(filepath):
+        os.remove(filepath)
     urllib.request.urlretrieve(url, filepath)
 
 
@@ -89,9 +97,7 @@ def load_idkab():
             _idkab_cache = gpd.read_feather(filepath)
         except Exception:
             status_update("idkab.feather is missing or corrupted, re-downloading")
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            _download_idkab()
+            redownload("idkab.feather")
             _idkab_cache = gpd.read_feather(filepath)
         status_update("feather loaded")
     return _idkab_cache
@@ -221,11 +227,20 @@ def get_hgt_data():
     if _hgt_cache is None:
         status_update("Loading ocean depth data")
         filepath = os.path.join(CACHE_DIR, 'hgt1.tif')
-        with rasterio.open(filepath) as src:
-            _hgt_cache = {
-                'data': src.read(1),
-                'extent': rasterio.plot.plotting_extent(src)
-            }
+        try:
+            with rasterio.open(filepath) as src:
+                _hgt_cache = {
+                    'data': src.read(1),
+                    'extent': rasterio.plot.plotting_extent(src)
+                }
+        except Exception:
+            status_update("hgt1.tif is missing or corrupted, re-downloading")
+            redownload("hgt1.tif")
+            with rasterio.open(filepath) as src:
+                _hgt_cache = {
+                    'data': src.read(1),
+                    'extent': rasterio.plot.plotting_extent(src)
+                }
         status_update("hgt cached to memory")
     return _hgt_cache
 

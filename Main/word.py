@@ -8,6 +8,7 @@ import io
 
 from .config import cfg, CACHE_DIR
 from .utils import number_to_bulan, dasarian_romawi
+from .static import redownload
 from .status import update as status_update
 from .narasi import get_full_narration, build_table_data
 
@@ -154,7 +155,12 @@ def arrange_word(map_data):
 
         # Load template and build context
         template_path = os.path.join(CACHE_DIR, 'template_doc.docx')
-        doc = DocxTemplate(template_path)
+        try:
+            doc = DocxTemplate(template_path)
+        except Exception:
+            status_update("template_doc.docx is missing or corrupted, re-downloading")
+            redownload("template_doc.docx")
+            doc = DocxTemplate(template_path)
 
         # Build table for text2 field (if applicable)
         if table_data:
