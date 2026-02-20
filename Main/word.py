@@ -75,10 +75,13 @@ def arrange_word(map_data):
     try:
         try:
             from docxtpl import DocxTemplate, InlineImage
+            import docxcompose  # noqa: F401 – verify dependency is available
         except ImportError:
             import subprocess
             status_update("Installing docxtpl...")
-            subprocess.check_call(['pip', 'install', 'docxtpl', '-q'])
+            subprocess.check_call(
+                ['pip', 'install', 'docxtpl', 'docxcompose', '-q']
+            )
             from docxtpl import DocxTemplate, InlineImage
         from docx.shared import Cm
         from google.colab import files
