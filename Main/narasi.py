@@ -5,10 +5,48 @@ Pre-computes percentages from count_points data to minimize token usage.
 """
 
 import json
+import time
 
 from .utils import number_to_bulan, dasarian_romawi, dasarian_to_date
 from .config import cfg
 from .status import update as status_update
+
+
+# =============================================================================
+# RETRY HELPER
+# =============================================================================
+
+def _call_with_retry(fn, max_retries=4, initial_delay=2.0):
+    """Call *fn()* with exponential-backoff retry on transient API errors."""
+    delay = initial_delay
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except Exception as e:
+            # Only retry on server-side (5xx) errors
+            err_str = str(e)
+            is_server_error = False
+            try:
+                from google.genai.errors import ServerError
+                if isinstance(e, ServerError):
+                    is_server_error = True
+            except ImportError:
+                # Fallback: detect 5xx from error message
+                if any(code in err_str for code in ('500', '502', '503', '504', 'UNAVAILABLE')):
+                    is_server_error = True
+            if not is_server_error:
+                raise
+            last_exc = e
+            if attempt == max_retries:
+                break
+            status_update(
+                f"API unavailable (attempt {attempt + 1}/{max_retries + 1}), "
+                f"retrying in {delay:.0f}s..."
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, 60.0)
+    raise last_exc
 
 
 # =============================================================================
@@ -589,10 +627,12 @@ def get_analysis(map_data):
     )
 
     # --- Generate ---
-    response = client.models.generate_content(
-        model='gemini-3-flash-preview',
-        contents=prompt
-    )
+    def _generate():
+        return client.models.generate_content(
+            model='gemini-3-flash-preview',
+            contents=prompt
+        )
+    response = _call_with_retry(_generate)
     status_update("AI narration complete")
     return response.text
 
@@ -671,10 +711,12 @@ def get_visual_interpretation(map_data, analysis_text=None):
     )
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
-    response = client.models.generate_content(
-        model='gemini-3-flash-preview',
-        contents=[prompt, image_part]
-    )
+    def _generate():
+        return client.models.generate_content(
+            model='gemini-3-flash-preview',
+            contents=[prompt, image_part]
+        )
+    response = _call_with_retry(_generate)
     status_update("Visual interpretation complete")
     return response.text
 
