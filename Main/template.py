@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
 
 from .config import cfg, CACHE_DIR
-from .static import font_path
+from .static import font_path, redownload
 from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi, dasarian_to_date
 from .status import update as status_update
 
@@ -38,7 +38,12 @@ def image_template():
             raise ValueError("Invalid peta.")
         status_update("Retrieving background template")
         filepath = os.path.join(CACHE_DIR, template_filename)
-        background_template = load_image_to_memory(filepath).convert("RGBA")
+        try:
+            background_template = load_image_to_memory(filepath).convert("RGBA")
+        except Exception:
+            status_update(f"{template_filename} is missing or corrupted, re-downloading")
+            redownload(template_filename)
+            background_template = load_image_to_memory(filepath).convert("RGBA")
         return background_template
     except KeyError:
         raise ValueError("Invalid combination of peta, skala, and tipe")
