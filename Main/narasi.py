@@ -816,26 +816,17 @@ def _build_kriteria_table(map_data):
         )[0]
         category_to_kabs.setdefault(dominant, []).append(kab_name)
 
-    if not category_to_kabs:
-        return None
-
     # Preserve original category order from the first kabupaten's count dict
     first_counts = next(iter(kabupaten_data.values()))
     cat_order = [k for k in first_counts if k != 'total']
 
+    if not cat_order:
+        return None
+
     rows = []
     for cat in cat_order:
         kabs = category_to_kabs.get(cat)
-        if kabs:
-            rows.append([cat, ', '.join(sorted(kabs))])
-
-    # Include any extra categories not present in the original order
-    for cat, kabs in category_to_kabs.items():
-        if cat not in cat_order:
-            rows.append([cat, ', '.join(sorted(kabs))])
-
-    if not rows:
-        return None
+        rows.append([cat, ', '.join(sorted(kabs)) if kabs else '-'])
 
     return {
         'columns': [col_name, 'Daerah'],
