@@ -46,8 +46,6 @@ def execute(peta, tipe, skala, month):
     if peta != 'HTH':
         clear_data_cache()
     
-    print(f"Processing: {peta} - {tipe} - {skala} - Month {month}")
-    
     if peta == 'Prakiraan':
         if tipe == 'Curah Hujan':
             status_update("Getting PCH data...")
@@ -143,6 +141,7 @@ __all__ = [
     'build_table_data',
     'arrange_word',
 ]
+
 
 
 
