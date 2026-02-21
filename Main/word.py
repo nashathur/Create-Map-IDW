@@ -31,8 +31,6 @@ def _build_table_subdoc(doc, table_data):
 
     FONT_NAME = 'Times New Roman'
     FONT_SIZE = Pt(12)
-    SPACING_PT = Pt(6)  # 6pt before and after
-
     sd = doc.new_subdoc()
 
     num_cols = len(table_data['columns'])
@@ -63,11 +61,8 @@ def _build_table_subdoc(doc, table_data):
 
     def _set_paragraph_spacing(paragraph):
         """Set 6pt before and after spacing on a paragraph."""
-        pPr = paragraph._p.get_or_add_pPr()
-        spacing = OxmlElement('w:spacing')
-        spacing.set(qn('w:before'), str(int(SPACING_PT)))
-        spacing.set(qn('w:after'), str(int(SPACING_PT)))
-        pPr.append(spacing)
+        paragraph.paragraph_format.space_before = Pt(6)
+        paragraph.paragraph_format.space_after = Pt(6)
 
     # ---- Header row ----
     for j, col_name in enumerate(table_data['columns']):
