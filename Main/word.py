@@ -24,9 +24,14 @@ def _build_table_subdoc(doc, table_data):
         Subdoc object to embed in the template context.
     """
     from docx.shared import Pt
-    from docx.enum.table import WD_ALIGN_VERTICAL
+    from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
+
+    FONT_NAME = 'Times New Roman'
+    FONT_SIZE = Pt(12)
+    SPACING_PT = Pt(6)  # 6pt before and after
 
     sd = doc.new_subdoc()
 
@@ -34,6 +39,9 @@ def _build_table_subdoc(doc, table_data):
     num_rows = len(table_data['rows']) + 1  # +1 for header
 
     table = sd.add_table(rows=num_rows, cols=num_cols)
+
+    # Center the table in the document
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     # Apply borders via XML (subdocuments don't have built-in Word styles)
     tbl = table._tbl
@@ -48,18 +56,34 @@ def _build_table_subdoc(doc, table_data):
         borders.append(el)
     tblPr.append(borders)
 
+    # Auto-fit column widths (let Word determine widths automatically)
+    tbl_layout = OxmlElement('w:tblLayout')
+    tbl_layout.set(qn('w:type'), 'autofit')
+    tblPr.append(tbl_layout)
+
+    def _set_paragraph_spacing(paragraph):
+        """Set 6pt before and after spacing on a paragraph."""
+        pPr = paragraph._p.get_or_add_pPr()
+        spacing = OxmlElement('w:spacing')
+        spacing.set(qn('w:before'), str(int(SPACING_PT)))
+        spacing.set(qn('w:after'), str(int(SPACING_PT)))
+        pPr.append(spacing)
+
     # ---- Header row ----
     for j, col_name in enumerate(table_data['columns']):
         cell = table.cell(0, j)
         cell.text = ''
         p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _set_paragraph_spacing(p)
         run = p.add_run(col_name)
         run.bold = True
-        run.font.size = Pt(10)
+        run.font.size = FONT_SIZE
+        run.font.name = FONT_NAME
         cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        # Shade header cells light blue
+        # Shade header cells grey
         shading = OxmlElement('w:shd')
-        shading.set(qn('w:fill'), 'D9E2F3')
+        shading.set(qn('w:fill'), 'BFBFBF')
         shading.set(qn('w:val'), 'clear')
         cell._tc.get_or_add_tcPr().append(shading)
 
@@ -69,8 +93,18 @@ def _build_table_subdoc(doc, table_data):
             cell = table.cell(i + 1, j)
             cell.text = ''
             p = cell.paragraphs[0]
+            _set_paragraph_spacing(p)
             run = p.add_run(val)
-            run.font.size = Pt(10)
+            run.font.size = FONT_SIZE
+            run.font.name = FONT_NAME
+            if j == 0:
+                # Kriteria column: center aligned
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            else:
+                # Daerah column: left aligned
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
     return sd
 
