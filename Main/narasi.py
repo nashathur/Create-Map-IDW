@@ -790,12 +790,19 @@ def _kriteria_column_name(peta, tipe):
     return tipe or 'Kriteria'
 
 
+_CLOSE_CATEGORY_THRESHOLD = 10.0  # percentage-point gap
+
+
 def _build_kriteria_table(map_data):
     """Build KRITERIA vs DAERAH table for standard (non-HTH) maps.
 
-    Each kabupaten is assigned to its *dominant* category (the category with the
-    highest station count).  Rows follow the original category order from
-    count_points so that the table reads from low → high severity.
+    Each kabupaten is assigned to its *dominant* category (highest percentage).
+    If another category is within ``_CLOSE_CATEGORY_THRESHOLD`` percentage
+    points of the dominant one, the kabupaten is listed under that category as
+    well so that near-ties are visible in the table.
+
+    Rows follow the original category order from count_points so that the table
+    reads from low → high severity.
     """
     kabupaten_data = map_data.get('kabupaten_data')
     if not kabupaten_data:
@@ -805,16 +812,22 @@ def _build_kriteria_table(map_data):
     tipe = map_data.get('tipe')
     col_name = _kriteria_column_name(peta, tipe)
 
-    # Classify each kabupaten by dominant category
+    # Classify each kabupaten — dominant + any close runner-up categories
     category_to_kabs = {}
     for kab_name, counts in kabupaten_data.items():
-        if counts.get('total', 0) == 0:
+        total = counts.get('total', 0)
+        if total == 0:
             continue
-        dominant = max(
-            ((cat, cnt) for cat, cnt in counts.items() if cat != 'total'),
-            key=lambda x: x[1],
-        )[0]
-        category_to_kabs.setdefault(dominant, []).append(kab_name)
+        pcts = [
+            (cat, cnt / total * 100)
+            for cat, cnt in counts.items()
+            if cat != 'total'
+        ]
+        pcts.sort(key=lambda x: x[1], reverse=True)
+        dominant_pct = pcts[0][1]
+        for cat, pct in pcts:
+            if pct > 0 and (dominant_pct - pct) <= _CLOSE_CATEGORY_THRESHOLD:
+                category_to_kabs.setdefault(cat, []).append(kab_name)
 
     # Preserve original category order from the first kabupaten's count dict
     first_counts = next(iter(kabupaten_data.values()))
