@@ -46,6 +46,9 @@ def _get_token():
 
 
 def log_execution(cfg, output_filename, duration):
+    if cfg.skip_logging:
+        return
+
     token = _get_token()
     if not token:
         print("GitHub token unavailable. Skipping log.")
