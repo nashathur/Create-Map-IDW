@@ -26,14 +26,21 @@ from .processors import (
     get_hth,
     load_hth,
 )
+from .stress import run_stress_test, random_config
 
 __version__ = "1.0.0"
 
 
 def execute(peta, tipe, skala, month):
     """Execute map generation based on configuration."""
-    start_time = time.time()
     download_static_files()
+
+    if cfg.stress_test:
+        return run_stress_test()
+
+    upload_files()
+
+    start_time = time.time()
 
     cfg.peta = peta
     cfg.tipe = tipe
@@ -152,7 +159,8 @@ __all__ = [
     'get_visual_interpretation',
     'build_table_data',
     'arrange_word',
-    'upload_files',
+    'run_stress_test',
+    'random_config',
 ]
 
 
