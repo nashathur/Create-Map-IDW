@@ -185,6 +185,12 @@ def _prepare_map_context(df, value, jenis, info):
         gdf = df
 
     clipped_gdf = gpd.clip(gdf, shp_main)
+    if clipped_gdf.empty:
+        raise ValueError(
+            f"Tidak ada titik data yang berada dalam wilayah '{nama_wilayah}'. "
+            f"Periksa apakah koordinat LON/LAT pada file sesuai dengan wilayah yang dipilih. "
+            f"Data memiliki {len(gdf)} titik, tetapi tidak ada yang berada dalam batas wilayah."
+        )
     status_update("Clipping data done")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
