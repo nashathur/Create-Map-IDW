@@ -321,8 +321,15 @@ def create_map(df, value, jenis, color, levels, info):
     Supported: 'linear' (default), 'cubic', 'nearest'.
     Discrete fields (<=10 unique values) always use 'nearest'.
     """
+    if value not in df.columns:
+        raise ValueError(
+            f"Kolom '{value}' tidak ditemukan pada DataFrame. "
+            f"Kolom yang tersedia: {list(df.columns)}. "
+            f"Pastikan file yang diupload memiliki kolom '{value}'."
+        )
+
     ctx = _prepare_map_context(df, value, jenis, info)
-    
+
     # ---- Interpolation ----
     lon_full = ctx['gdf'].geometry.x.to_numpy()
     lat_full = ctx['gdf'].geometry.y.to_numpy()
@@ -453,6 +460,13 @@ def _build_hth_rows(joined):
 # =============================================================================
 
 def create_scatter_map(df, value, jenis, colors, info):
+    if value not in df.columns:
+        raise ValueError(
+            f"Kolom '{value}' tidak ditemukan pada DataFrame. "
+            f"Kolom yang tersedia: {list(df.columns)}. "
+            f"Pastikan file yang diupload memiliki kolom '{value}'."
+        )
+
     ctx = _prepare_map_context(df, value, jenis, info)
     scatter_sizes = {
         0: 300,

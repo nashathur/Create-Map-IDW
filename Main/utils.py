@@ -80,6 +80,39 @@ def clear_data_cache():
     
 
 
+def _normalize_columns(df):
+    """Normalize common column name variants to standard names."""
+    col_map = {}
+    for col in df.columns:
+        cu = str(col).upper().strip()
+        if cu in ('BUJUR', 'LON', 'LONGITUDE'):
+            col_map[col] = 'LON'
+        elif cu in ('LINTANG', 'LAT', 'LATITUDE'):
+            col_map[col] = 'LAT'
+        elif cu in ('CH', 'CURAH HUJAN', 'CURAH_HUJAN'):
+            col_map[col] = 'CH'
+        elif cu in ('VAL', 'VALUE', 'NILAI'):
+            col_map[col] = 'VAL'
+        elif cu in ('SH', 'SIFAT HUJAN', 'SIFAT_HUJAN'):
+            col_map[col] = 'SH'
+        elif cu in ('SH%', 'SH_PERSEN', 'SIFAT_HUJAN_PERSEN'):
+            col_map[col] = 'SH%'
+    if col_map:
+        df = df.rename(columns=col_map)
+    return df
+
+
+def _validate_lonlat(df, source_name):
+    """Validate that LON and LAT columns exist in the DataFrame."""
+    missing = [c for c in ('LON', 'LAT') if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Kolom {', '.join(missing)} tidak ditemukan pada file {source_name}. "
+            f"Kolom yang tersedia: {list(df.columns)}. "
+            f"Pastikan file memiliki kolom LON/BUJUR/LONGITUDE dan LAT/LINTANG/LATITUDE."
+        )
+
+
 def load_prakiraan(copy=False):
     global _df_prakiraan_cache
 
@@ -98,6 +131,9 @@ def load_prakiraan(copy=False):
         df_prakiraan = pd.read_excel(filepath)
     else:
         raise FileNotFoundError(f"Unsupported file format: {filepath}")
+
+    df_prakiraan = _normalize_columns(df_prakiraan)
+    _validate_lonlat(df_prakiraan, filepath)
 
     df_prakiraan[['LON', 'LAT']] = df_prakiraan[['LON', 'LAT']].round(2)
     status_update(f"File {filepath} loaded successfully")
@@ -124,6 +160,9 @@ def load_analisis(copy=False):
         df_analisis = pd.read_excel(filepath)
     else:
         raise FileNotFoundError(f"Unsupported file format: {filepath}")
+
+    df_analisis = _normalize_columns(df_analisis)
+    _validate_lonlat(df_analisis, filepath)
 
     df_analisis[['LON', 'LAT']] = df_analisis[['LON', 'LAT']].round(2)
     status_update(f"File {filepath} loaded successfully")
@@ -299,6 +338,11 @@ def calculate_metrics(forecast_series, actual_series, contingency_table):
 
 
 def count_points(data, value, levels):
+    if value not in data.columns:
+        raise ValueError(
+            f"Kolom '{value}' tidak ditemukan saat menghitung titik per wilayah. "
+            f"Kolom yang tersedia: {list(data.columns)}."
+        )
     arr = data[value].values
 
     if cfg.tipe == 'Curah Hujan':
@@ -344,13 +388,24 @@ def arrange_table():
 
     if 'CH' in df_prakiraan.columns:
         value = 'CH'
-        status_update("Found CH column")
+        status_update("Found CH column in prakiraan")
     elif 'VAL' in df_prakiraan.columns:
         value = 'VAL'
-        status_update("Found VAL column")
+        status_update("Found VAL column in prakiraan")
     else:
-        raise ValueError("Neither CH nor VAL found in the DataFrame")
-    
+        raise ValueError(
+            f"Kolom 'CH' atau 'VAL' tidak ditemukan pada file prakiraan. "
+            f"Kolom yang tersedia: {list(df_prakiraan.columns)}. "
+            f"Untuk verifikasi, file prakiraan harus memiliki kolom CH atau VAL."
+        )
+
+    if 'CH' not in df_analisis.columns:
+        raise ValueError(
+            f"Kolom 'CH' tidak ditemukan pada file analisis. "
+            f"Kolom yang tersedia: {list(df_analisis.columns)}. "
+            f"Untuk verifikasi, file analisis harus memiliki kolom CH (Curah Hujan)."
+        )
+
     status_update("Processing dataframe categories")
     df_prakiraan['CH_category'] = categorize_ch_vec(df_prakiraan[value])
     df_analisis['CH_category'] = categorize_ch_vec(df_analisis['CH'])
