@@ -60,6 +60,16 @@ def _build_table_subdoc(doc, table_data):
     tbl_layout.set(qn('w:type'), 'autofit')
     tblPr.append(tbl_layout)
 
+    # Set all cell widths to "auto" so Word actually auto-sizes them.
+    # python-docx creates fixed-width (dxa) cells by default, which
+    # prevents autofit from working even when w:tblLayout is "autofit".
+    for row in table.rows:
+        for cell in row.cells:
+            tcW = cell._tc.tcPr.find(qn('w:tcW'))
+            if tcW is not None:
+                tcW.set(qn('w:type'), 'auto')
+                tcW.set(qn('w:w'), '0')
+
     def _set_paragraph_spacing(paragraph):
         """Set 6pt before and after spacing on a paragraph."""
         paragraph.paragraph_format.space_before = Pt(6)
