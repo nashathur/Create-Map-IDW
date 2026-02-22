@@ -8,7 +8,7 @@ from .static import download_static_files, clear_basemap_cache
 from .utils import load_prakiraan, load_analisis, clear_data_cache
 from .map_creation import create_map, clear_spatial_cache, _export_csv
 from .template import overlay_image
-from .upload import upload_files, ensure_files
+from .upload import upload_files
 from .status import update as status_update
 from .narasi import get_analysis, get_full_narration, get_visual_interpretation, build_table_data
 from .word import arrange_word
@@ -53,7 +53,7 @@ def execute(peta, tipe, skala, month):
     if cfg.png_only:
         cfg.hgt = False
 
-    ensure_files(peta)
+    upload_files()
 
     if peta != 'HTH':
         clear_data_cache()
@@ -152,6 +152,7 @@ __all__ = [
     'get_visual_interpretation',
     'build_table_data',
     'arrange_word',
+    'upload_files',
 ]
 
 
