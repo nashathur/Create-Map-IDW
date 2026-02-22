@@ -91,7 +91,16 @@ def get_pch():
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
-        value = 'VAL'
+        if 'VAL' in df_pch.columns:
+            value = 'VAL'
+        elif 'CH' in df_pch.columns:
+            value = 'CH'
+        else:
+            raise ValueError(
+                f"Kolom 'VAL' atau 'CH' tidak ditemukan pada file prakiraan. "
+                f"Kolom yang tersedia: {list(df_pch.columns)}. "
+                f"Untuk peta Prakiraan Curah Hujan Bulanan, file harus memiliki kolom VAL atau CH."
+            )
         jenis = 'PCH'
         status_update(f"Creating {jenis} Map")
         plot_data = create_map(df_pch, value, jenis, color, levels, info)
@@ -102,7 +111,11 @@ def get_pch():
         elif 'VAL' in df_pch.columns:
             value = 'VAL'
         else:
-            raise ValueError("Neither CH nor VAL found in the DataFrame")
+            raise ValueError(
+                f"Kolom 'CH' atau 'VAL' tidak ditemukan pada file prakiraan. "
+                f"Kolom yang tersedia: {list(df_pch.columns)}. "
+                f"Untuk peta Prakiraan Curah Hujan Dasarian, file harus memiliki kolom CH atau VAL."
+            )
         jenis = 'PCHdas'
 
     status_update(f"Creating {jenis} Map")
@@ -118,10 +131,28 @@ def get_psh():
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
-        value = 'VAL'
+        if 'VAL' in df_psh.columns:
+            value = 'VAL'
+        elif 'SH' in df_psh.columns:
+            value = 'SH'
+        else:
+            raise ValueError(
+                f"Kolom 'VAL' atau 'SH' tidak ditemukan pada file prakiraan. "
+                f"Kolom yang tersedia: {list(df_psh.columns)}. "
+                f"Untuk peta Prakiraan Sifat Hujan Bulanan, file harus memiliki kolom VAL atau SH."
+            )
         jenis = 'PSH'
     else:
-        value = 'SH'
+        if 'SH' in df_psh.columns:
+            value = 'SH'
+        elif 'VAL' in df_psh.columns:
+            value = 'VAL'
+        else:
+            raise ValueError(
+                f"Kolom 'SH' atau 'VAL' tidak ditemukan pada file prakiraan. "
+                f"Kolom yang tersedia: {list(df_psh.columns)}. "
+                f"Untuk peta Prakiraan Sifat Hujan Dasarian, file harus memiliki kolom SH atau VAL."
+            )
         jenis = 'PSHdas'
 
     status_update(f"Creating {jenis} Map")
@@ -143,7 +174,13 @@ def get_ach():
     else:
         levels = [0, 10, 20, 50, 75, 100, 150, 200, 300, 1000]
         color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
-    
+
+    if 'CH' not in df_ach.columns:
+        raise ValueError(
+            f"Kolom 'CH' tidak ditemukan pada file analisis. "
+            f"Kolom yang tersedia: {list(df_ach.columns)}. "
+            f"Untuk peta Analisis Curah Hujan, file harus memiliki kolom CH (Curah Hujan)."
+        )
     value = 'CH'
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
@@ -164,6 +201,13 @@ def get_ash():
     df_ash = load_analisis()
     levels = [0, 30, 50, 85, 115, 150, 200, 500]
     color = ['#4a1600', '#a85b00', '#f3c40f', '#ffff00', '#8bb700', '#238129', '#00460e']
+
+    if 'SH%' not in df_ash.columns:
+        raise ValueError(
+            f"Kolom 'SH%' tidak ditemukan pada file analisis. "
+            f"Kolom yang tersedia: {list(df_ash.columns)}. "
+            f"Untuk peta Analisis Sifat Hujan, file harus memiliki kolom SH% (Sifat Hujan persen)."
+        )
     value = 'SH%'
     
     if cfg.skala == 'Bulanan':
@@ -185,8 +229,14 @@ def get_pch_prob():
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     df_prob = load_prakiraan()
     
-    if 'b50' not in df_prob.columns:
-        raise ValueError("The column data for probabilistik is missing from the DataFrame.")
+    required_prob_cols = ['b50', 'b100', 'b150', 'a50', 'a100', 'a150']
+    missing_cols = [c for c in required_prob_cols if c not in df_prob.columns]
+    if missing_cols:
+        raise ValueError(
+            f"Kolom probabilistik tidak lengkap. Kolom yang tidak ditemukan: {missing_cols}. "
+            f"Kolom yang tersedia: {list(df_prob.columns)}. "
+            f"Untuk peta Probabilistik, file harus memiliki kolom: {required_prob_cols}."
+        )
     
     levels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     color = ['#ffffff', '#0000fe', '#007fff', '#01ffff', '#7eff80', '#fffe01', '#ffc800', '#ff7f00', '#ff3f01', '#b10101']
@@ -387,8 +437,35 @@ def bias_map():
     status_update("Processing Bias map")
     df_prakiraan, df_analisis, merged_df = arrange_table()
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
+
+    # Resolve prakiraan value column (VAL or CH_forecast from merge)
+    if 'VAL' in merged_df.columns:
+        forecast_col = 'VAL'
+    elif 'VAL_forecast' in merged_df.columns:
+        forecast_col = 'VAL_forecast'
+    elif 'CH_forecast' in merged_df.columns:
+        forecast_col = 'CH_forecast'
+    else:
+        raise ValueError(
+            f"Kolom prakiraan ('VAL' atau 'CH') tidak ditemukan pada data gabungan (merged). "
+            f"Kolom yang tersedia: {list(merged_df.columns)}. "
+            f"Untuk peta Bias, file prakiraan harus memiliki kolom VAL atau CH."
+        )
+
+    # Resolve analisis value column (CH or CH_analysis from merge)
+    if 'CH' in merged_df.columns:
+        actual_col = 'CH'
+    elif 'CH_analysis' in merged_df.columns:
+        actual_col = 'CH_analysis'
+    else:
+        raise ValueError(
+            f"Kolom analisis ('CH') tidak ditemukan pada data gabungan (merged). "
+            f"Kolom yang tersedia: {list(merged_df.columns)}. "
+            f"Untuk peta Bias, file analisis harus memiliki kolom CH (Curah Hujan)."
+        )
+
     status_update("Calculating bias")
-    merged_df['bias'] = merged_df['VAL'] - merged_df['CH']
+    merged_df['bias'] = merged_df[forecast_col] - merged_df[actual_col]
     levels = [-1000, -500, -400, -300, -200, -100, -50, -25, 0, 25, 50, 100, 200, 300, 400, 500, 1000]
     color = ['#af3547', '#c74651', '#dc5b5e', '#ea7972', '#f19580', '#f5ae8a', '#f7c69a', '#ffffff', '#ffffff', '#bbe3f0', '#95d8ee', '#62cdef', '#34c0ec', '#0cafe4', '#0094d2', '#0074bc']
     value = 'bias'
