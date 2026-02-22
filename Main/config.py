@@ -24,6 +24,10 @@ class cfg:
     # Display options
     hgt = False
     export_csv = False
+
+    # Stress test
+    stress_test = False
+    skip_logging = False
     
     # File paths (set after upload)
     file_prakiraan = None
@@ -64,6 +68,7 @@ STATIC_FILES = {
     'template_hth.png': f"{GITHUB_BASE}/template_hth.png",
     'arial.zip': f"{GITHUB_BASE}/arial.zip",
     'template_doc.docx': f"{GITHUB_BASE}/template_doc.docx",
+    'ID_GRID.csv': f"{GITHUB_BASE}/ID_GRID.csv",
 }
 
 
