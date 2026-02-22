@@ -59,10 +59,12 @@ def execute(peta, tipe, skala, month):
 
     if cfg.png_only:
         cfg.hgt = False
-        
+
+    upload_files()
+
     if peta != 'HTH':
         clear_data_cache()
-    
+
     if peta == 'Prakiraan':
         if tipe == 'Curah Hujan':
             status_update("Getting PCH data...")
