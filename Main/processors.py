@@ -33,14 +33,20 @@ def load_hth():
         raise ValueError("cfg.file_hth not set. Set it to the uploaded file path.")
 
     filepath = cfg.file_hth
-    status_update(f"Loading HTH file: {filepath}")
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(
+            f"File tidak ditemukan: {filepath}. "
+            f"Pastikan path file sudah benar dan file sudah diupload."
+        )
 
-    if filepath.endswith('.csv'):
+    status_update(f"Loading HTH file: {filepath}")
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == '.csv':
         df = pd.read_csv(filepath)
-    elif filepath.endswith(('.xlsx', '.xls')):
+    elif ext in ('.xlsx', '.xls'):
         df = pd.read_excel(filepath)
     else:
-        raise FileNotFoundError(f"Unsupported file format: {filepath}")
+        raise FileNotFoundError(f"Format file tidak didukung: {filepath}. Gunakan file .csv, .xlsx, atau .xls.")
 
     # Normalize column names
     col_map = {}
@@ -354,6 +360,11 @@ def get_verif():
 
     gdf_merged = gpd.GeoDataFrame(merged_df, geometry=gpd.points_from_xy(merged_df.LON, merged_df.LAT), crs=shp_crs)
     clipped_merged_df = gpd.clip(gdf_merged, shp_main)
+    if clipped_merged_df.empty:
+        raise ValueError(
+            f"Tidak ada titik data verifikasi yang berada dalam wilayah yang dipilih. "
+            f"Data gabungan memiliki {len(gdf_merged)} titik, tetapi tidak ada yang berada dalam batas wilayah."
+        )
 
     status_update("Building contingency table")
     contingency = pd.crosstab(clipped_merged_df[col_forecast], clipped_merged_df[col_analysis], dropna=False, margins=True)

@@ -124,13 +124,20 @@ def load_prakiraan(copy=False):
         raise ValueError("cfg.file_prakiraan not set. Set it to the uploaded file path.")
 
     filepath = cfg.file_prakiraan
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(
+            f"File tidak ditemukan: {filepath}. "
+            f"Pastikan path file sudah benar dan file sudah diupload."
+        )
+
     status_update(f"Loading prakiraan file: {filepath}")
-    if filepath.endswith('.csv'):
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == '.csv':
         df_prakiraan = pd.read_csv(filepath)
-    elif filepath.endswith('.xlsx') or filepath.endswith('.xls'):
+    elif ext in ('.xlsx', '.xls'):
         df_prakiraan = pd.read_excel(filepath)
     else:
-        raise FileNotFoundError(f"Unsupported file format: {filepath}")
+        raise FileNotFoundError(f"Format file tidak didukung: {filepath}. Gunakan file .csv, .xlsx, atau .xls.")
 
     df_prakiraan = _normalize_columns(df_prakiraan)
     _validate_lonlat(df_prakiraan, filepath)
@@ -153,13 +160,20 @@ def load_analisis(copy=False):
         raise ValueError("cfg.file_analisis not set. Set it to the uploaded file path.")
 
     filepath = cfg.file_analisis
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(
+            f"File tidak ditemukan: {filepath}. "
+            f"Pastikan path file sudah benar dan file sudah diupload."
+        )
+
     status_update(f"Loading analisis file: {filepath}")
-    if filepath.endswith('.csv'):
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == '.csv':
         df_analisis = pd.read_csv(filepath)
-    elif filepath.endswith('.xlsx') or filepath.endswith('.xls'):
+    elif ext in ('.xlsx', '.xls'):
         df_analisis = pd.read_excel(filepath)
     else:
-        raise FileNotFoundError(f"Unsupported file format: {filepath}")
+        raise FileNotFoundError(f"Format file tidak didukung: {filepath}. Gunakan file .csv, .xlsx, atau .xls.")
 
     df_analisis = _normalize_columns(df_analisis)
     _validate_lonlat(df_analisis, filepath)
@@ -414,6 +428,13 @@ def arrange_table():
 
     status_update("Merging forecast and analysis data")
     merged_df = pd.merge(df_prakiraan, df_analisis, on=['LON', 'LAT'], suffixes=('_forecast', '_analysis'))
+    if merged_df.empty:
+        raise ValueError(
+            f"Tidak ada koordinat yang cocok antara file prakiraan dan analisis. "
+            f"Prakiraan memiliki {len(df_prakiraan)} titik, analisis memiliki {len(df_analisis)} titik, "
+            f"tetapi tidak ada pasangan LON/LAT yang sama. "
+            f"Pastikan kedua file menggunakan koordinat stasiun yang sama."
+        )
 
     merged_df['exact_match'] = (merged_df['CH_category_forecast'] == merged_df['CH_category_analysis']).astype(int)
     merged_df['exact_index'] = (merged_df['index_forecast'] == merged_df['index_analysis']).astype(int)
