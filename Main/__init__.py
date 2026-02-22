@@ -40,6 +40,16 @@ def execute(peta, tipe, skala, month):
     cfg.skala = skala
     cfg.month = month
 
+    if not isinstance(month, int) or month < 1 or month > 12:
+        raise ValueError(
+            f"Nilai bulan tidak valid: {month}. Bulan harus berupa angka 1-12."
+        )
+
+    if cfg.dasarian is not None and cfg.dasarian not in (1, 2, 3):
+        raise ValueError(
+            f"Nilai dasarian tidak valid: {cfg.dasarian}. Dasarian harus bernilai 1, 2, atau 3."
+        )
+
     if cfg.png_only:
         cfg.hgt = False
         
