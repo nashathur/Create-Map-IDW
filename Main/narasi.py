@@ -24,24 +24,32 @@ def _call_with_retry(fn, max_retries=4, initial_delay=2.0):
         try:
             return fn()
         except Exception as e:
-            # Only retry on server-side (5xx) errors
             err_str = str(e)
-            is_server_error = False
+            is_retryable = False
+            # Check for server-side (5xx) errors
             try:
                 from google.genai.errors import ServerError
                 if isinstance(e, ServerError):
-                    is_server_error = True
+                    is_retryable = True
             except ImportError:
-                # Fallback: detect 5xx from error message
                 if any(code in err_str for code in ('500', '502', '503', '504', 'UNAVAILABLE')):
-                    is_server_error = True
-            if not is_server_error:
+                    is_retryable = True
+            # Check for rate limit (429) errors
+            if not is_retryable:
+                if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
+                    is_retryable = True
+                    # Use server-suggested retry delay if available
+                    import re
+                    m = re.search(r'retry\s*in\s*([\d.]+)s', err_str, re.IGNORECASE)
+                    if m:
+                        delay = max(delay, float(m.group(1)) + 1.0)
+            if not is_retryable:
                 raise
             last_exc = e
             if attempt == max_retries:
                 break
             status_update(
-                f"API unavailable (attempt {attempt + 1}/{max_retries + 1}), "
+                f"API rate limited (attempt {attempt + 1}/{max_retries + 1}), "
                 f"retrying in {delay:.0f}s..."
             )
             time.sleep(delay)
