@@ -170,7 +170,7 @@ def arrange_word(map_data):
         analysis = get_full_narration(map_data)
         table_data = build_table_data(map_data)
     except Exception as e:
-        status_update(f"Warning: narasi generation failed: {e}")
+        print(f"Warning: narasi generation failed: {e}")
 
     try:
         try:
@@ -243,3 +243,4 @@ def arrange_word(map_data):
         print(f"Error generating Word document: {e}")
         _print_fallback(title1, title2, analysis, table_data)
         return None
+
