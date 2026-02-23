@@ -3,36 +3,79 @@
 Create-Map-IDW - Weather Map Generation Package for BMKG
 """
 
+import time
+import importlib as _importlib
+
+# ── Eager imports (lightweight, no heavy deps) ───────────────────────────────
 from .config import cfg, CACHE_DIR
-from .static import download_static_files, clear_basemap_cache
-from .utils import load_prakiraan, load_analisis, clear_data_cache
-from .map_creation import create_map, clear_spatial_cache, _export_csv
-from .template import overlay_image
 from .upload import upload_files
 from .status import update as status_update
-from .narasi import get_analysis, get_full_narration, get_visual_interpretation, build_table_data
-from .word import arrange_word
-import time
-from .logger import log_execution
-from .processors import (
-    get_pch,
-    get_psh,
-    get_ach,
-    get_ash,
-    get_pch_prob,
-    get_verif,
-    get_normal,
-    bias_map,
-    get_hth,
-    load_hth,
-)
-from .stress import run_stress_test, random_config
 
 __version__ = "1.0.0"
 
 
+# ── Lazy attribute access (PEP 562) ──────────────────────────────────────────
+# Heavy modules are only loaded when their names are first accessed, e.g.
+#   from Main import get_pch   →  triggers import of processors.py
+#   from Main import create_map →  triggers import of map_creation.py
+
+_LAZY_MAP = {
+    'download_static_files':      ('.static', 'download_static_files'),
+    'clear_basemap_cache':        ('.static', 'clear_basemap_cache'),
+    'clear_data_cache':           ('.utils', 'clear_data_cache'),
+    'load_prakiraan':             ('.utils', 'load_prakiraan'),
+    'load_analisis':              ('.utils', 'load_analisis'),
+    'create_map':                 ('.map_creation', 'create_map'),
+    'clear_spatial_cache':        ('.map_creation', 'clear_spatial_cache'),
+    'overlay_image':              ('.template', 'overlay_image'),
+    'get_analysis':               ('.narasi', 'get_analysis'),
+    'get_full_narration':         ('.narasi', 'get_full_narration'),
+    'get_visual_interpretation':  ('.narasi', 'get_visual_interpretation'),
+    'build_table_data':           ('.narasi', 'build_table_data'),
+    'arrange_word':               ('.word', 'arrange_word'),
+    'log_execution':              ('.logger', 'log_execution'),
+    'get_pch':                    ('.processors', 'get_pch'),
+    'get_psh':                    ('.processors', 'get_psh'),
+    'get_ach':                    ('.processors', 'get_ach'),
+    'get_ash':                    ('.processors', 'get_ash'),
+    'get_pch_prob':               ('.processors', 'get_pch_prob'),
+    'get_verif':                  ('.processors', 'get_verif'),
+    'get_normal':                 ('.processors', 'get_normal'),
+    'bias_map':                   ('.processors', 'bias_map'),
+    'get_hth':                    ('.processors', 'get_hth'),
+    'load_hth':                   ('.processors', 'load_hth'),
+    'run_stress_test':            ('.stress', 'run_stress_test'),
+    'random_config':              ('.stress', 'random_config'),
+}
+
+
+def __getattr__(name):
+    if name in _LAZY_MAP:
+        module_path, attr_name = _LAZY_MAP[name]
+        mod = _importlib.import_module(module_path, __package__)
+        val = getattr(mod, attr_name)
+        globals()[name] = val          # cache so next access is instant
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# ── Main entry point ─────────────────────────────────────────────────────────
+
 def execute(peta, tipe, skala, month):
     """Execute map generation based on configuration."""
+    # Lazy imports — heavy deps load here on first call, not at package import
+    from .static import download_static_files
+    from .utils import clear_data_cache
+    from .map_creation import _export_csv
+    from .template import overlay_image
+    from .logger import log_execution
+    from .processors import (
+        get_pch, get_psh, get_ach, get_ash, get_pch_prob,
+        get_verif, get_normal, bias_map, get_hth,
+    )
+    from .stress import run_stress_test
+    from .word import arrange_word
+
     download_static_files()
 
     if cfg.stress_test:
@@ -98,7 +141,7 @@ def execute(peta, tipe, skala, month):
         plot_data = get_hth()
     else:
         raise ValueError(f"Unknown peta type: {peta}")
-        
+
     if cfg.export_csv:
         if peta == 'Probabilistik':
             for key in ('result_b50', 'result_b100', 'result_b150', 'result_a50', 'result_a100', 'result_a150'):
@@ -127,7 +170,6 @@ def execute(peta, tipe, skala, month):
         arrange_word(map_data)
 
     return map_data
-    
 
 
 __all__ = [
@@ -160,10 +202,3 @@ __all__ = [
     'run_stress_test',
     'random_config',
 ]
-
-
-
-
-
-
-

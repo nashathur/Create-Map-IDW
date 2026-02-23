@@ -8,13 +8,11 @@ def upload_files():
     """
     from google.colab import files
     from .config import cfg
-    from .utils import clear_data_cache
     from .status import update as status_update
 
     cfg.file_prakiraan = None
     cfg.file_analisis = None
     cfg.file_hth = None
-    clear_data_cache()
 
     jenis = cfg.jenis_peta
     if jenis == 'HTH':
