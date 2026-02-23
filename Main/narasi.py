@@ -13,40 +13,91 @@ from .status import update as status_update
 
 
 # =============================================================================
+# MODEL FALLBACK CHAINS — tried in order on 429 RESOURCE_EXHAUSTED
+# =============================================================================
+
+ANALYSIS_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+]
+
+VISUAL_MODELS = [
+    'gemini-3-flash',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+]
+
+
+# =============================================================================
 # RETRY HELPER
 # =============================================================================
 
-def _call_with_retry(fn, max_retries=4, initial_delay=2.0):
-    """Call *fn()* with exponential-backoff retry on transient API errors."""
-    delay = initial_delay
-    last_exc = None
-    for attempt in range(max_retries + 1):
-        try:
-            return fn()
-        except Exception as e:
-            # Only retry on server-side (5xx) errors
-            err_str = str(e)
-            is_server_error = False
+def _is_rate_limited(e):
+    """Check if exception is a 429 rate-limit / RESOURCE_EXHAUSTED error."""
+    try:
+        from google.genai.errors import ClientError
+        if isinstance(e, ClientError) and '429' in str(e):
+            return True
+    except ImportError:
+        pass
+    err_str = str(e)
+    return any(s in err_str for s in ('429', 'RESOURCE_EXHAUSTED'))
+
+
+def _call_with_model_fallback(fn, models, max_retries=3, initial_delay=2.0):
+    """Try fn(model) across a list of models, falling back on rate limits.
+
+    - 5xx errors: retry with backoff within the same model
+    - 429/RESOURCE_EXHAUSTED: move to next model immediately
+    - Other errors: raise immediately
+
+    Returns response on success, None if all models exhausted.
+    """
+    for model_idx, model in enumerate(models):
+        delay = initial_delay
+        for attempt in range(max_retries + 1):
             try:
-                from google.genai.errors import ServerError
-                if isinstance(e, ServerError):
-                    is_server_error = True
-            except ImportError:
-                # Fallback: detect 5xx from error message
-                if any(code in err_str for code in ('500', '502', '503', '504', 'UNAVAILABLE')):
-                    is_server_error = True
-            if not is_server_error:
-                raise
-            last_exc = e
-            if attempt == max_retries:
-                break
-            status_update(
-                f"API unavailable (attempt {attempt + 1}/{max_retries + 1}), "
-                f"retrying in {delay:.0f}s..."
-            )
-            time.sleep(delay)
-            delay = min(delay * 2, 60.0)
-    raise last_exc
+                return fn(model)
+            except Exception as e:
+                if _is_rate_limited(e):
+                    if model_idx < len(models) - 1:
+                        status_update(
+                            f"Rate limited on {model}, trying next model..."
+                        )
+                    else:
+                        status_update(
+                            f"Rate limited on {model} (last model)."
+                        )
+                    break  # Move to next model
+
+                # Check for 5xx server error → retry with backoff
+                is_server = False
+                try:
+                    from google.genai.errors import ServerError
+                    if isinstance(e, ServerError):
+                        is_server = True
+                except ImportError:
+                    err_str = str(e)
+                    if any(c in err_str for c in ('500', '502', '503', '504', 'UNAVAILABLE')):
+                        is_server = True
+
+                if not is_server:
+                    raise  # Client errors other than 429 → raise
+
+                if attempt == max_retries:
+                    # Exhausted retries for this model, try next
+                    if model_idx < len(models) - 1:
+                        status_update(f"Server errors on {model}, trying next model...")
+                    break
+
+                status_update(
+                    f"API error on {model} (attempt {attempt + 1}/{max_retries + 1}), "
+                    f"retrying in {delay:.0f}s..."
+                )
+                time.sleep(delay)
+                delay = min(delay * 2, 60.0)
+
+    return None  # All models exhausted
 
 
 # =============================================================================
@@ -613,26 +664,37 @@ def get_analysis(map_data):
 
     # --- Build prompt ---
     prompt = (
-        "Kamu penulis narasi peta BMKG. "
-        "Tulis narasi SINGKAT (2-3 kalimat) dengan STRUKTUR dan GAYA yang IDENTIK dengan contoh.\n"
-        "ATURAN:\n"
-        "- Kalimat pertama: sebutkan dominan kategori per provinsi dengan RENTANG NILAI dan PERSENTASE.\n"
-        "- Kalimat berikutnya: sebutkan nama kabupaten untuk kategori non-dominan, TANPA persentase.\n"
-        "- Sebutkan SEMUA kategori yang ada di data kabupaten, terutama kategori ekstrem.\n"
-        "- Gunakan angka persentase PERSIS dari data, jangan hitung ulang.\n"
-        "- Tulis teks polos tanpa formatting (tanpa bold, italic, bullet, heading).\n\n"
+        "Kamu penulis narasi peta cuaca BMKG. "
+        "Tulis TEPAT 2-3 kalimat narasi berdasarkan DATA yang diberikan.\n\n"
+        "FORMAT WAJIB:\n"
+        "Kalimat 1: \"[Jenis Peta] [Tipe] [Periode] di Provinsi [Nama] didominasi "
+        "[kategori dominan] ([rentang nilai]) sebesar [X]%"
+        "[, sementara [Provinsi2] didominasi [kategori] ([rentang]) sebesar [Y]%].\"\n"
+        "Kalimat 2-3: Sebutkan kabupaten untuk kategori ekstrem/non-dominan TANPA persentase. "
+        "Gunakan kata kerja sesuai jenis peta: "
+        "'diprakirakan' (Prakiraan), 'tercatat' (Analisis), "
+        "'menunjukkan' (Verifikasi), 'pada kategori' (Normal/Bias/HTH).\n\n"
+        "LARANGAN:\n"
+        "1. DILARANG mengubah angka persentase — salin PERSIS dari data.\n"
+        "2. DILARANG menambah informasi yang tidak ada dalam data.\n"
+        "3. DILARANG menggunakan formatting (bold, italic, bullet, heading).\n"
+        "4. DILARANG menulis lebih dari 3 kalimat.\n"
+        "5. DILARANG menghilangkan kategori ekstrem yang ada di data kabupaten.\n\n"
         f"Definisi kategori: {cat_str}\n\n"
         f"=== CONTOH ===\nInput:\n{example['input']}\n\nOutput:\n{example['output']}\n=== AKHIR CONTOH ===\n\n"
         f"=== DATA BARU ===\nInput:\n{current_input}\n\nOutput:"
     )
 
-    # --- Generate ---
-    def _generate():
+    # --- Generate with model fallback ---
+    def _generate(model):
         return client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model=model,
             contents=prompt
         )
-    response = _call_with_retry(_generate)
+    response = _call_with_model_fallback(_generate, ANALYSIS_MODELS)
+    if response is None:
+        status_update("All models exhausted for narration")
+        return "Narasi otomatis tidak tersedia: semua model API telah mencapai batas kuota."
     status_update("AI narration complete")
     return response.text
 
@@ -698,25 +760,35 @@ def get_visual_interpretation(map_data, analysis_text=None):
         )
 
     prompt = (
-        "Kamu adalah analis cuaca BMKG. "
-        "Perhatikan gambar peta berikut dan berikan interpretasi visual SINGKAT dalam Bahasa Indonesia. "
-        "HANYA 1-2 kalimat saja yang menjelaskan pola spasial utama yang terlihat di peta. "
-        "Kalimat harus bisa langsung menyambung narasi sebelumnya tanpa pengulangan periode atau judul. "
-        "JANGAN mengarang angka atau persentase yang tidak ada dalam data referensi. "
-        "JANGAN ulangi kategori, persentase, atau nama wilayah yang sudah disebutkan di narasi sebelumnya. "
-        "JANGAN gunakan formatting apapun (tanpa bold, italic, bullet, heading, asterisk). "
-        "Tulis dalam teks polos, singkat, dan padat."
+        "Kamu analis cuaca BMKG. "
+        "Lihat peta berikut dan tulis TEPAT 3 kalimat interpretasi visual.\n\n"
+        "FORMAT WAJIB:\n"
+        "- Deskripsikan POLA SPASIAL yang terlihat di peta "
+        "(konsentrasi warna, gradien, sebaran geografis).\n"
+        "- Kalimat harus langsung menyambung narasi sebelumnya "
+        "tanpa mengulang periode/judul.\n\n"
+        "LARANGAN:\n"
+        "1. DILARANG mengarang angka atau persentase yang tidak ada di data referensi.\n"
+        "2. DILARANG mengulang kategori, persentase, atau nama wilayah dari narasi sebelumnya.\n"
+        "3. DILARANG menggunakan formatting (bold, italic, bullet, heading, asterisk).\n"
+        "4. DILARANG menulis lebih dari 3 kalimat.\n"
+        "5. DILARANG menambahkan kesimpulan atau rekomendasi."
         + grounding
         + prior_context
     )
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
-    def _generate():
+
+    # --- Generate with model fallback ---
+    def _generate(model):
         return client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model=model,
             contents=[prompt, image_part]
         )
-    response = _call_with_retry(_generate)
+    response = _call_with_model_fallback(_generate, VISUAL_MODELS)
+    if response is None:
+        status_update("All models exhausted for visual interpretation")
+        return "Interpretasi visual tidak tersedia: semua model API telah mencapai batas kuota."
     status_update("Visual interpretation complete")
     return response.text
 
