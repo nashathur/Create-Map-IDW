@@ -403,6 +403,17 @@ def create_map(df, value, jenis, color, levels, info):
         for spine in ax.spines.values():
             spine.set_linewidth(7)
 
+    if jenis == 'BIAS':
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(
+            sm, ax=ax, orientation='horizontal',
+            fraction=0.046, pad=0.04, shrink=0.8,
+            ticks=levels,
+        )
+        cbar.set_label('Bias (mm)', fontsize=20, fontweight='bold')
+        cbar.ax.tick_params(labelsize=14, rotation=45)
+
     plot_data = _finalize_map(fig, ax, ctx, levels, province_counts, kabupaten_counts, joined_gdf=joined)
 
     del clipped_data, interpolated
