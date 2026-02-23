@@ -169,8 +169,8 @@ def arrange_word(map_data):
     try:
         analysis = get_full_narration(map_data)
         table_data = build_table_data(map_data)
-    except Exception:
-        pass  # best-effort; failures handled in fallback below
+    except Exception as e:
+        status_update(f"Warning: narasi generation failed: {e}")
 
     try:
         try:
