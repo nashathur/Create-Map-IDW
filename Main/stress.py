@@ -34,7 +34,7 @@ PROVINCES = [
 
 JENIS_OPTIONS = [
     'Prakiraan', 'Analisis', 'Probabilistik',
-    'Verifikasi', 'Normal', 'Bias', 'HTH',
+    'Verifikasi', 'Normal', 'HTH',
 ]
 
 STRESS_DIR = '/content/stress_test'
@@ -162,8 +162,8 @@ def _generate_random_data(jenis, tipe, skala, rng):
         cfg.file_prakiraan = path
         return
 
-    # ── Verifikasi / Bias — need both prakiraan and analisis ──
-    if jenis in ('Verifikasi', 'Bias'):
+    # ── Verifikasi — needs both prakiraan and analisis ──
+    if jenis == 'Verifikasi':
         df_p = coords.copy()
         df_p['VAL'] = rng.uniform(0, 1000, size=n).round(1)
         path_p = os.path.join(STRESS_DIR, 'stress_prakiraan.csv')
@@ -275,7 +275,7 @@ def run_stress_test():
     from .word import arrange_word
     from .processors import (
         get_pch, get_psh, get_ach, get_ash,
-        get_pch_prob, get_verif, get_normal, bias_map, get_hth,
+        get_pch_prob, get_verif, get_normal, get_hth,
     )
 
     n = 10
@@ -325,8 +325,6 @@ def run_stress_test():
                 plot_data = get_verif()
             elif jenis == 'Normal':
                 plot_data = get_normal()
-            elif jenis == 'Bias':
-                plot_data = bias_map()
             elif jenis == 'HTH':
                 plot_data = get_hth()
 
