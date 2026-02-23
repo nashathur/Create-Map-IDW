@@ -110,7 +110,7 @@ def execute(peta, tipe, skala, month):
         else:
             _export_csv(plot_data)
 
-    if cfg.png_only:
+    if cfg.png_only or peta == 'Bias':
         output_filename = plot_data.get('file_name', 'png_only')
         status_update(f"Completed: {output_filename}")
         duration = time.time() - start_time
