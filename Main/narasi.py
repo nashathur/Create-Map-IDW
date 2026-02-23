@@ -17,12 +17,13 @@ from .status import update as status_update
 # =============================================================================
 
 ANALYSIS_MODELS = [
+    'gemini-3-flash-preview',
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
 ]
 
 VISUAL_MODELS = [
-    'gemini-3-flash',
+    'gemini-3-flash-preview',
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
 ]
