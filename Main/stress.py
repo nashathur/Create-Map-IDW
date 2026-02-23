@@ -34,7 +34,7 @@ PROVINCES = [
 
 JENIS_OPTIONS = [
     'Prakiraan', 'Analisis', 'Probabilistik',
-    'Verifikasi', 'Normal', 'Bias', 'HTH',
+    'Verifikasi', 'Normal', 'HTH',
 ]
 
 STRESS_DIR = '/content/stress_test'
