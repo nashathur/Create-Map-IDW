@@ -9,6 +9,7 @@ def upload_files():
     from google.colab import files
     from .config import cfg
     from .utils import clear_data_cache
+    from .status import update as status_update
 
     cfg.file_prakiraan = None
     cfg.file_analisis = None
@@ -17,7 +18,7 @@ def upload_files():
 
     jenis = cfg.jenis_peta
     if jenis == 'HTH':
-        print("Upload file HTH (Excel/CSV):")
+        status_update("Upload file HTH (Excel/CSV):")
         uploaded = files.upload()
         cfg.file_hth = list(uploaded.keys())[0]
         return
@@ -31,11 +32,11 @@ def upload_files():
     )
 
     if needs_prakiraan:
-        print("Upload prakiraan file:")
+        status_update("Upload prakiraan file:")
         uploaded = files.upload()
         cfg.file_prakiraan = list(uploaded.keys())[0]
 
     if needs_analisis:
-        print("Upload analisis file:")
+        status_update("Upload analisis file:")
         uploaded = files.upload()
         cfg.file_analisis = list(uploaded.keys())[0]
