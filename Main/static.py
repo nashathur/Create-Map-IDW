@@ -14,7 +14,7 @@ import rasterio
 import rasterio.plot
 from thefuzz import process
 
-from .config import CACHE_DIR, STATIC_FILES
+from .config import cfg, CACHE_DIR, STATIC_FILES
 from .status import update as status_update
 
 
@@ -22,7 +22,47 @@ from .status import update as status_update
 # DOWNLOAD
 # =============================================================================
 
+def _ensure_fonts():
+    """Ensure arial.zip is downloaded and extracted. No-op if already done."""
+    fonts_dir = os.path.join(CACHE_DIR, "fonts")
+    if os.path.exists(fonts_dir):
+        return
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    arial_path = os.path.join(CACHE_DIR, "arial.zip")
+    if not os.path.exists(arial_path):
+        redownload("arial.zip")
+    status_update("Extracting fonts")
+    try:
+        with zipfile.ZipFile(arial_path, 'r') as z:
+            z.extractall(CACHE_DIR)
+    except Exception:
+        status_update("arial.zip is corrupted, re-downloading")
+        redownload("arial.zip")
+        with zipfile.ZipFile(arial_path, 'r') as z:
+            z.extractall(CACHE_DIR)
+
+
+def _get_template_filename(peta, tipe, skala):
+    """Return the template filename needed for this map type."""
+    templates = {
+        'Verifikasi': 'template_verifikasi.png',
+        'Probabilistik': 'template_probabilistik.png',
+        'Normal': 'template_ch_bulanan.png',
+        'HTH': 'template_hth.png',
+    }
+    if peta in templates:
+        return templates[peta]
+    if peta in ('Prakiraan', 'Analisis'):
+        default = {
+            'Bulanan': {'Curah Hujan': 'template_ch_bulanan.png', 'Sifat Hujan': 'template_sh.png'},
+            'Dasarian': {'Curah Hujan': 'template_ch_das.png', 'Sifat Hujan': 'template_sh.png'},
+        }
+        return default.get(skala, {}).get(tipe)
+    return None
+
+
 def download_static_files():
+    """Download ALL static files (used by stress test path)."""
     os.makedirs(CACHE_DIR, exist_ok=True)
     status_update("Checking static files")
     for filename, url in STATIC_FILES.items():
@@ -30,19 +70,37 @@ def download_static_files():
         if not os.path.exists(filepath):
             status_update(f"Downloading {filename}")
             urllib.request.urlretrieve(url, filepath)
-    # Extract fonts
-    fonts_dir = os.path.join(CACHE_DIR, "fonts")
-    if not os.path.exists(fonts_dir):
-        status_update("Extracting fonts")
-        try:
-            with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
-                z.extractall(CACHE_DIR)
-        except Exception:
-            status_update("arial.zip is corrupted, re-downloading")
-            redownload("arial.zip")
-            with zipfile.ZipFile(os.path.join(CACHE_DIR, "arial.zip"), 'r') as z:
-                z.extractall(CACHE_DIR)
-    #status_update("All template files ready, waiting for uploaded files.")
+    _ensure_fonts()
+
+
+def download_required_files(peta, tipe, skala):
+    """Download only the static files needed for this execution."""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    status_update("Checking required static files")
+
+    required = ['idkab.feather', 'arial.zip']
+
+    if not cfg.png_only:
+        template = _get_template_filename(peta, tipe, skala)
+        if template:
+            required.append(template)
+
+    if cfg.hgt and not cfg.png_only:
+        required.append('hgt1.tif')
+    if peta == 'Normal':
+        required.append('DATA_CH_NORMAL_PAPBAR_1991_2020.xlsx')
+    if cfg.create_word:
+        required.append('template_doc.docx')
+
+    for filename in required:
+        filepath = os.path.join(CACHE_DIR, filename)
+        if not os.path.exists(filepath):
+            url = STATIC_FILES.get(filename)
+            if url:
+                status_update(f"Downloading {filename}")
+                urllib.request.urlretrieve(url, filepath)
+
+    _ensure_fonts()
 
 
 # =============================================================================
@@ -64,6 +122,7 @@ def font_path(font_style):
         'medium': 'ArialMdm.ttf',
         'medium_italic': 'ArialMdmItl.ttf'
     }
+    _ensure_fonts()
     return os.path.join(CACHE_DIR, font_files[font_style])
 
 
