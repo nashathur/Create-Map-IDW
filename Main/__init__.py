@@ -21,6 +21,7 @@ __version__ = "1.0.0"
 
 _LAZY_MAP = {
     'download_static_files':      ('.static', 'download_static_files'),
+    'download_required_files':    ('.static', 'download_required_files'),
     'clear_basemap_cache':        ('.static', 'clear_basemap_cache'),
     'clear_data_cache':           ('.utils', 'clear_data_cache'),
     'load_prakiraan':             ('.utils', 'load_prakiraan'),
@@ -64,7 +65,7 @@ def __getattr__(name):
 def execute(peta, tipe, skala, month):
     """Execute map generation based on configuration."""
     # Lazy imports — heavy deps load here on first call, not at package import
-    from .static import download_static_files
+    from .static import download_static_files, download_required_files
     from .utils import clear_data_cache
     from .map_creation import _export_csv
     from .template import overlay_image
@@ -76,12 +77,12 @@ def execute(peta, tipe, skala, month):
     from .stress import run_stress_test
     from .word import arrange_word
 
-    download_static_files()
-
     if cfg.stress_test:
+        download_static_files()
         return run_stress_test()
 
     upload_files()
+    download_required_files(peta, tipe, skala)
 
     start_time = time.time()
 
@@ -176,6 +177,7 @@ __all__ = [
     'cfg',
     'CACHE_DIR',
     'download_static_files',
+    'download_required_files',
     'clear_basemap_cache',
     'clear_data_cache',
     'load_prakiraan',
