@@ -4,6 +4,8 @@ Global configuration and constants for Staklim package.
 """
 
 import os
+import tempfile
+import warnings
 
 
 def is_colab():
@@ -66,14 +68,52 @@ def _decode(blob, key):
 cfg.gemini_api_key = _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
+
+def _is_writable_dir(path):
+    """Check whether *path* can be used as a cache directory.
+
+    If the directory exists, test writability directly.
+    If it doesn't exist, walk up to the nearest existing ancestor
+    and check that it is writable (so os.makedirs will succeed later).
+    """
+    try:
+        if os.path.isdir(path):
+            return os.access(path, os.W_OK)
+        parent = path
+        while parent and not os.path.exists(parent):
+            prev = parent
+            parent = os.path.dirname(parent)
+            if parent == prev:
+                return False
+        return os.access(parent, os.W_OK) if parent else False
+    except OSError:
+        return False
+
 def _resolve_cache_dir():
-    """Determine the static file cache directory."""
+    """Determine the static file cache directory.
+
+    Resolution order:
+    1. Google Colab  -> /content/static_data
+    2. Env var       -> CREATE_MAP_IDW_CACHE_DIR
+    3. User home dir -> ~/.create_map_idw/static_data (if writable)
+    4. Temp dir      -> <tempdir>/create_map_idw/static_data (fallback)
+    """
     if is_colab():
         return "/content/static_data"
     env_override = os.environ.get("CREATE_MAP_IDW_CACHE_DIR")
     if env_override:
         return env_override
-    return os.path.join(os.path.expanduser("~"), ".create_map_idw", "static_data")
+    primary = os.path.join(os.path.expanduser("~"), ".create_map_idw", "static_data")
+    if _is_writable_dir(primary):
+        return primary
+    fallback = os.path.join(tempfile.gettempdir(), "create_map_idw", "static_data")
+    warnings.warn(
+        f"Default cache dir '{primary}' is not writable. "
+        f"Falling back to '{fallback}'. "
+        f"Set CREATE_MAP_IDW_CACHE_DIR to override.",
+        stacklevel=2,
+    )
+    return fallback
 
 CACHE_DIR = _resolve_cache_dir()
 
