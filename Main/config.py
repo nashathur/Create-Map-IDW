@@ -130,7 +130,6 @@ STATIC_FILES = {
     'ARIAL.TTF': f"{GITHUB_BASE}/ARIAL.TTF",
     'ARIALBD.TTF': f"{GITHUB_BASE}/ARIALBD.TTF",
     'ArialMdm.ttf': f"{GITHUB_BASE}/ArialMdm.ttf",
-    'arial.zip': f"{GITHUB_BASE}/arial.zip",
     'template_doc.docx': f"{GITHUB_BASE}/template_doc.docx",
     'ID_GRID.csv': f"{GITHUB_BASE}/ID_GRID.csv",
 }

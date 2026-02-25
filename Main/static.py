@@ -25,54 +25,12 @@ _FONT_FILES = ['ARIAL.TTF', 'ARIALBD.TTF', 'ArialMdm.ttf']
 
 
 def _ensure_fonts():
-    """Ensure font files exist in CACHE_DIR.
-
-    Tries downloading individual font files first.  If any download fails
-    (e.g. the release asset was removed), falls back to ``arial.zip`` and
-    extracts the needed files one-by-one using ``z.read()`` instead of
-    ``extractall()`` — the latter raises ``OSError: [Errno 22]`` on
-    certain Windows configurations.
-    """
+    """Ensure individual font files are downloaded. No-op if already present."""
     os.makedirs(CACHE_DIR, exist_ok=True)
-
-    missing = [f for f in _FONT_FILES
-               if not os.path.exists(os.path.join(CACHE_DIR, f))]
-    if not missing:
-        return
-
-    # --- primary: download individual font files ---
-    still_missing = []
-    for fname in missing:
-        try:
+    for fname in _FONT_FILES:
+        filepath = os.path.join(CACHE_DIR, fname)
+        if not os.path.exists(filepath):
             redownload(fname)
-        except Exception:
-            still_missing.append(fname)
-
-    if not still_missing:
-        return
-
-    # --- fallback: download arial.zip and extract safely ---
-    import zipfile
-
-    arial_path = os.path.join(CACHE_DIR, "arial.zip")
-    if not os.path.exists(arial_path):
-        redownload("arial.zip")
-
-    status_update("Extracting fonts from arial.zip")
-    try:
-        with zipfile.ZipFile(arial_path, "r") as z:
-            for fname in still_missing:
-                data = z.read(fname)
-                with open(os.path.join(CACHE_DIR, fname), "wb") as f:
-                    f.write(data)
-    except Exception:
-        status_update("arial.zip is corrupted, re-downloading")
-        redownload("arial.zip")
-        with zipfile.ZipFile(arial_path, "r") as z:
-            for fname in still_missing:
-                data = z.read(fname)
-                with open(os.path.join(CACHE_DIR, fname), "wb") as f:
-                    f.write(data)
 
 
 def _get_template_filename(peta, tipe, skala):
