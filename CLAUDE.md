@@ -187,7 +187,11 @@ All input DataFrames must use these normalized column names after loading:
 
 ## Static Files and Caching
 
-Static files are downloaded from GitHub releases to `/content/static_data` (Google Colab's filesystem). This path is controlled by `CACHE_DIR` in `config.py`.
+Static files are downloaded from GitHub releases. The cache directory is resolved by `_resolve_cache_dir()` in `config.py`:
+
+1. **Google Colab:** `/content/static_data`
+2. **Environment variable:** `CREATE_MAP_IDW_CACHE_DIR` (if set)
+3. **Default (local):** `~/.create_map_idw/static_data`
 
 | File | Purpose |
 |---|---|

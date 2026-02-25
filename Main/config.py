@@ -66,7 +66,16 @@ def _decode(blob, key):
 cfg.gemini_api_key = _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
-CACHE_DIR = "/content/static_data" if is_colab() else os.path.join(os.getcwd(), "static_data")
+def _resolve_cache_dir():
+    """Determine the static file cache directory."""
+    if is_colab():
+        return "/content/static_data"
+    env_override = os.environ.get("CREATE_MAP_IDW_CACHE_DIR")
+    if env_override:
+        return env_override
+    return os.path.join(os.path.expanduser("~"), ".create_map_idw", "static_data")
+
+CACHE_DIR = _resolve_cache_dir()
 
 STATIC_FILES = {
     'idkab.feather': f"{GITHUB_BASE}/idkab.feather",
