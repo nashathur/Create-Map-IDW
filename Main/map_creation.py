@@ -555,9 +555,12 @@ def _export_csv(plot_data):
     export_df = joined_gdf[[c for c in keep_cols if c in joined_gdf.columns]].copy()
     export_df = export_df.reset_index(drop=True)
 
+    from .config import is_colab
+
     png_name = plot_data.get('file_name', 'export')
     csv_name = os.path.splitext(png_name)[0] + '.csv'
-    csv_path = os.path.join('/content', csv_name)
+    output_dir = '/content' if is_colab() else os.getcwd()
+    csv_path = os.path.join(output_dir, csv_name)
 
     export_df.to_csv(csv_path, index=False)
     status_update(f"CSV exported: {csv_name} ({len(export_df)} rows)")
@@ -566,7 +569,7 @@ def _export_csv(plot_data):
         from google.colab import files
         files.download(csv_path)
     except ImportError:
-        print(f"Not running in Google Colab. CSV saved to: {csv_path}")
+        print(f"CSV saved to: {csv_path}")
 
 
 
