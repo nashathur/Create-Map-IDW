@@ -93,7 +93,7 @@ def _draw_hth_text(draw, plot_data, text_x):
     font_line2 = ImageFont.truetype(font_path('bold'), size=46)
     font_line3 = ImageFont.truetype(font_path('bold'), size=40)
     font_line4 = _get_scaled_font(title_lines[3], font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=36)
-    font_update = ImageFont.truetype(font_path('bold_italic'), size=36)
+    font_update = ImageFont.truetype(font_path('regular'), size=36)
 
     fonts_title = [font_line1, font_line2, font_line3, font_line4]
 
