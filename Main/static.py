@@ -6,7 +6,6 @@ Static file management: downloads, fonts, basemap, elevation data.
 import os
 import time
 import urllib.request
-import zipfile
 
 import numpy as np
 import geopandas as gpd
@@ -22,24 +21,16 @@ from .status import update as status_update
 # DOWNLOAD
 # =============================================================================
 
+_FONT_FILES = ['ARIAL.TTF', 'ARIALBD.TTF', 'ArialMdm.ttf']
+
+
 def _ensure_fonts():
-    """Ensure arial.zip is downloaded and extracted. No-op if already done."""
-    fonts_dir = os.path.join(CACHE_DIR, "fonts")
-    if os.path.exists(fonts_dir):
-        return
+    """Ensure individual font files are downloaded. No-op if already present."""
     os.makedirs(CACHE_DIR, exist_ok=True)
-    arial_path = os.path.join(CACHE_DIR, "arial.zip")
-    if not os.path.exists(arial_path):
-        redownload("arial.zip")
-    status_update("Extracting fonts")
-    try:
-        with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
-    except Exception:
-        status_update("arial.zip is corrupted, re-downloading")
-        redownload("arial.zip")
-        with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
+    for fname in _FONT_FILES:
+        filepath = os.path.join(CACHE_DIR, fname)
+        if not os.path.exists(filepath):
+            redownload(fname)
 
 
 def _get_template_filename(peta, tipe, skala):
@@ -78,7 +69,7 @@ def download_required_files(peta, tipe, skala):
     os.makedirs(CACHE_DIR, exist_ok=True)
     status_update("Checking required static files")
 
-    required = ['idkab.feather', 'arial.zip']
+    required = ['idkab.feather'] + _FONT_FILES
 
     if not cfg.png_only:
         template = _get_template_filename(peta, tipe, skala)
@@ -111,16 +102,7 @@ def font_path(font_style):
     font_files = {
         'regular': 'ARIAL.TTF',
         'bold': 'ARIALBD.TTF',
-        'italic': 'ARIALI.TTF',
-        'bold_italic': 'ARIALBI.TTF',
-        'narrow': 'ARIALN.TTF',
-        'narrow_bold': 'ARIALNB.TTF',
-        'narrow_italic': 'ARIALNI.TTF',
-        'narrow_bold_italic': 'ARIALNBI.TTF',
-        'black': 'ARIBLK.TTF',
-        'light': 'ARIALLGT.TTF',
         'medium': 'ArialMdm.ttf',
-        'medium_italic': 'ArialMdmItl.ttf'
     }
     _ensure_fonts()
     return os.path.join(CACHE_DIR, font_files[font_style])
