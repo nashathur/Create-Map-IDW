@@ -303,8 +303,11 @@ def overlay_image(plot_data):
     status_update(f"Map: {jenis}_{year}.{month:02d}{das_title}{ver_title} ({value})")
     file_name = f"peta_{timestamp}_{jenis}_{year}.{month:02d}{das_title}{ver_title}.png"
 
-    from IPython.display import display
-    display(new_image)
+    try:
+        from IPython.display import display
+        display(new_image)
+    except ImportError:
+        pass
 
     background_template.close()
     if result_image is not None:

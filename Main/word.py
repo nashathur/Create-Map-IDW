@@ -184,7 +184,7 @@ def arrange_word(map_data):
             )
             from docxtpl import DocxTemplate, InlineImage
         from docx.shared import Cm
-        from google.colab import files
+        from .config import is_colab
 
         status_update("Generating Word document...")
 
@@ -220,11 +220,16 @@ def arrange_word(map_data):
 
         # Render and save
         doc.render(context)
-        output_path = f'/content/Laporan {peta} {tipe}.docx'
+        output_dir = '/content' if is_colab() else os.getcwd()
+        output_path = os.path.join(output_dir, f'Laporan {peta} {tipe}.docx')
         doc.save(output_path)
 
         status_update(f"Word exported: {os.path.basename(output_path)}")
-        files.download(output_path)
+        try:
+            from google.colab import files
+            files.download(output_path)
+        except ImportError:
+            status_update(f"Word document saved to: {output_path}")
 
         return output_path
 
