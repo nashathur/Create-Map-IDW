@@ -69,7 +69,7 @@ def download_required_files(peta, tipe, skala):
     os.makedirs(CACHE_DIR, exist_ok=True)
     status_update("Checking required static files")
 
-    required = ['idkab.feather'] + _FONT_FILES
+    required = ['idkab.feather']
 
     if not cfg.png_only:
         template = _get_template_filename(peta, tipe, skala)
