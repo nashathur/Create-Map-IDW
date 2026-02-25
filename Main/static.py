@@ -14,7 +14,8 @@ import rasterio
 import rasterio.plot
 from thefuzz import process
 
-from .config import cfg, CACHE_DIR, STATIC_FILES
+from . import config
+from .config import cfg, STATIC_FILES
 from .status import update as status_update
 
 
@@ -24,22 +25,28 @@ from .status import update as status_update
 
 def _ensure_fonts():
     """Ensure arial.zip is downloaded and extracted. No-op if already done."""
-    fonts_dir = os.path.join(CACHE_DIR, "fonts")
+    cache_dir = config.CACHE_DIR
+    fonts_dir = os.path.join(cache_dir, "fonts")
     if os.path.exists(fonts_dir):
         return
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    arial_path = os.path.join(CACHE_DIR, "arial.zip")
+    os.makedirs(cache_dir, exist_ok=True)
+    arial_path = os.path.join(cache_dir, "arial.zip")
     if not os.path.exists(arial_path):
         redownload("arial.zip")
     status_update("Extracting fonts")
     try:
         with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
-    except Exception:
+            z.extractall(cache_dir)
+    except zipfile.BadZipFile:
         status_update("arial.zip is corrupted, re-downloading")
         redownload("arial.zip")
         with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
+            z.extractall(cache_dir)
+    except OSError as e:
+        raise OSError(
+            f"Cannot extract fonts to {cache_dir}: {e}. "
+            f"Set the CREATE_MAP_IDW_CACHE_DIR environment variable to a writable directory."
+        ) from e
 
 
 def _get_template_filename(peta, tipe, skala):
@@ -63,10 +70,11 @@ def _get_template_filename(peta, tipe, skala):
 
 def download_static_files():
     """Download ALL static files (used by stress test path)."""
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    config.validate_cache_dir()
+    os.makedirs(config.CACHE_DIR, exist_ok=True)
     status_update("Checking static files")
     for filename, url in STATIC_FILES.items():
-        filepath = os.path.join(CACHE_DIR, filename)
+        filepath = os.path.join(config.CACHE_DIR, filename)
         if not os.path.exists(filepath):
             status_update(f"Downloading {filename}")
             urllib.request.urlretrieve(url, filepath)
@@ -75,7 +83,8 @@ def download_static_files():
 
 def download_required_files(peta, tipe, skala):
     """Download only the static files needed for this execution."""
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    config.validate_cache_dir()
+    os.makedirs(config.CACHE_DIR, exist_ok=True)
     status_update("Checking required static files")
 
     required = ['idkab.feather', 'arial.zip']
@@ -93,7 +102,7 @@ def download_required_files(peta, tipe, skala):
         required.append('template_doc.docx')
 
     for filename in required:
-        filepath = os.path.join(CACHE_DIR, filename)
+        filepath = os.path.join(config.CACHE_DIR, filename)
         if not os.path.exists(filepath):
             url = STATIC_FILES.get(filename)
             if url:
@@ -123,7 +132,7 @@ def font_path(font_style):
         'medium_italic': 'ArialMdmItl.ttf'
     }
     _ensure_fonts()
-    return os.path.join(CACHE_DIR, font_files[font_style])
+    return os.path.join(config.CACHE_DIR, font_files[font_style])
 
 
 # =============================================================================
@@ -137,11 +146,11 @@ _hgt_cache = None
 
 def redownload(filename, max_retries=4):
     """Delete and re-download a static file with exponential backoff."""
-    filepath = os.path.join(CACHE_DIR, filename)
+    filepath = os.path.join(config.CACHE_DIR, filename)
     url = STATIC_FILES.get(filename)
     if url is None:
         raise FileNotFoundError(f"No download URL configured for {filename}")
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    os.makedirs(config.CACHE_DIR, exist_ok=True)
     if os.path.exists(filepath):
         os.remove(filepath)
     for attempt in range(1, max_retries + 1):
@@ -163,7 +172,7 @@ def load_idkab():
     global _idkab_cache
     if _idkab_cache is None:
         status_update("Loading idkab feather")
-        filepath = os.path.join(CACHE_DIR, "idkab.feather")
+        filepath = os.path.join(config.CACHE_DIR, "idkab.feather")
         try:
             _idkab_cache = gpd.read_feather(filepath)
         except Exception:
@@ -297,7 +306,7 @@ def get_hgt_data():
     global _hgt_cache
     if _hgt_cache is None:
         status_update("Loading ocean depth data")
-        filepath = os.path.join(CACHE_DIR, 'hgt1.tif')
+        filepath = os.path.join(config.CACHE_DIR, 'hgt1.tif')
         try:
             with rasterio.open(filepath) as src:
                 _hgt_cache = {

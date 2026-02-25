@@ -11,7 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
 
-from .config import cfg, CACHE_DIR
+from . import config
+from .config import cfg
 from .static import font_path, redownload
 from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi, dasarian_to_date
 from .status import update as status_update
@@ -37,7 +38,7 @@ def image_template():
         else:
             raise ValueError("Invalid peta.")
         status_update("Retrieving background template")
-        filepath = os.path.join(CACHE_DIR, template_filename)
+        filepath = os.path.join(config.CACHE_DIR, template_filename)
         try:
             background_template = load_image_to_memory(filepath).convert("RGBA")
         except Exception:
