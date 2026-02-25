@@ -57,7 +57,8 @@ def _upload_local(cfg, status_update):
 
     root = tk.Tk()
     root.withdraw()
-
+    root.attributes('-topmost', True)
+    
     jenis = cfg.jenis_peta
     filetypes = [("Excel/CSV files", "*.xlsx *.xls *.csv"), ("All files", "*.*")]
 
