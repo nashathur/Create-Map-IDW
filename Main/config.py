@@ -3,6 +3,18 @@
 Global configuration and constants for Staklim package.
 """
 
+import os
+
+
+def is_colab():
+    """Return True if running inside Google Colab."""
+    try:
+        import google.colab  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 class cfg:
     """Global configuration holder - set these before calling execute()"""
     # Map settings
@@ -54,7 +66,7 @@ def _decode(blob, key):
 cfg.gemini_api_key = _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
-CACHE_DIR = "/content/static_data"
+CACHE_DIR = "/content/static_data" if is_colab() else os.path.join(os.getcwd(), "static_data")
 
 STATIC_FILES = {
     'idkab.feather': f"{GITHUB_BASE}/idkab.feather",
