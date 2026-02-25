@@ -12,7 +12,8 @@ import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-from .config import cfg, CACHE_DIR
+from . import config
+from .config import cfg
 from .status import update as status_update
 
 # ── Hardcoded config space ──────────────────────────────────────────────────
@@ -44,7 +45,7 @@ STRESS_DIR = '/content/stress_test'
 
 def _load_grid():
     """Load the ID_GRID.csv coordinate file from cache."""
-    grid_path = os.path.join(CACHE_DIR, 'ID_GRID.csv')
+    grid_path = os.path.join(config.CACHE_DIR, 'ID_GRID.csv')
     if not os.path.exists(grid_path):
         raise FileNotFoundError(
             f"ID_GRID.csv not found at {grid_path}. "

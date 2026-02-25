@@ -13,7 +13,8 @@ import geopandas as gpd
 from PIL import Image
 from numba import njit, prange
 
-from .config import cfg, CACHE_DIR
+from . import config
+from .config import cfg
 from .status import update as status_update
 
 
@@ -38,7 +39,7 @@ def load_image_to_memory(source):
 
 
 def get_cached_file(folder_id, filename):
-    filepath = os.path.join(CACHE_DIR, filename)
+    filepath = os.path.join(config.CACHE_DIR, filename)
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Static file not found: {filename}")
     with open(filepath, 'rb') as f:

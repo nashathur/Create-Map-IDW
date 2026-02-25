@@ -6,7 +6,8 @@ Word document generation from map data using docxtpl templates.
 import os
 import io
 
-from .config import cfg, CACHE_DIR
+from . import config
+from .config import cfg
 from .utils import number_to_bulan, dasarian_romawi
 from .static import redownload
 from .status import update as status_update
@@ -196,7 +197,7 @@ def arrange_word(map_data):
         image_buffer.seek(0)
 
         # Load template and build context
-        template_path = os.path.join(CACHE_DIR, 'template_doc.docx')
+        template_path = os.path.join(config.CACHE_DIR, 'template_doc.docx')
         try:
             doc = DocxTemplate(template_path)
         except Exception:

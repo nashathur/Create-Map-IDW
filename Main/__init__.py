@@ -7,7 +7,8 @@ import time
 import importlib as _importlib
 
 # ── Eager imports (lightweight, no heavy deps) ───────────────────────────────
-from .config import cfg, CACHE_DIR, is_colab
+from . import config
+from .config import cfg, is_colab
 from .upload import upload_files
 from .status import update as status_update
 
@@ -51,6 +52,10 @@ _LAZY_MAP = {
 
 
 def __getattr__(name):
+    # CACHE_DIR is dynamic — always return current value from config module
+    # (it may be updated by validate_cache_dir() at runtime)
+    if name == 'CACHE_DIR':
+        return config.CACHE_DIR
     if name in _LAZY_MAP:
         module_path, attr_name = _LAZY_MAP[name]
         mod = _importlib.import_module(module_path, __package__)

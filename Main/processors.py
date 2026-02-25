@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import rasterio.plot
 
-from .config import cfg, CACHE_DIR
+from . import config
+from .config import cfg
 from .static import get_basemap, get_hgt_data, redownload
 from .utils import (
     load_prakiraan, load_analisis, load_image_to_memory,
@@ -428,11 +429,11 @@ def get_normal():
     normal_filename = "DATA_CH_NORMAL_PAPBAR_1991_2020.xlsx"
     status_update("Loading normal data")
     try:
-        df_normal = pd.read_excel(os.path.join(CACHE_DIR, normal_filename))
+        df_normal = pd.read_excel(os.path.join(config.CACHE_DIR, normal_filename))
     except Exception:
         status_update(f"{normal_filename} is missing or corrupted, re-downloading")
         redownload(normal_filename)
-        df_normal = pd.read_excel(os.path.join(CACHE_DIR, normal_filename))
+        df_normal = pd.read_excel(os.path.join(config.CACHE_DIR, normal_filename))
     df_normal[['LON', 'LAT']] = df_normal[['LON', 'LAT']].round(2)
     df_normal = df_normal.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore')
     levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
