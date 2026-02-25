@@ -7,7 +7,7 @@ import time
 import importlib as _importlib
 
 # ── Eager imports (lightweight, no heavy deps) ───────────────────────────────
-from .config import cfg, CACHE_DIR
+from .config import cfg, CACHE_DIR, is_colab
 from .upload import upload_files
 from .status import update as status_update
 
@@ -176,6 +176,7 @@ def execute(peta, tipe, skala, month):
 __all__ = [
     'cfg',
     'CACHE_DIR',
+    'is_colab',
     'download_static_files',
     'download_required_files',
     'clear_basemap_cache',
