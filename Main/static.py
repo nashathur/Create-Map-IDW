@@ -22,6 +22,25 @@ from .status import update as status_update
 # DOWNLOAD
 # =============================================================================
 
+def _extract_fonts_manual(arial_path):
+    """Extract font files from arial.zip using manual read/write.
+
+    Avoids zipfile.extractall() which can fail on Windows with
+    OSError [Errno 22] due to zip entry metadata that Windows rejects.
+    """
+    with zipfile.ZipFile(arial_path, 'r') as z:
+        for member in z.namelist():
+            if member.endswith('/'):
+                continue
+            basename = os.path.basename(member)
+            if not basename:
+                continue
+            target = os.path.join(CACHE_DIR, basename)
+            data = z.read(member)
+            with open(target, 'wb') as f:
+                f.write(data)
+
+
 def _ensure_fonts():
     """Ensure arial.zip is downloaded and extracted. No-op if already done."""
     fonts_dir = os.path.join(CACHE_DIR, "fonts")
@@ -33,13 +52,20 @@ def _ensure_fonts():
         redownload("arial.zip")
     status_update("Extracting fonts")
     try:
-        with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
+        if os.name == 'nt':
+            _extract_fonts_manual(arial_path)
+        else:
+            with zipfile.ZipFile(arial_path, 'r') as z:
+                z.extractall(CACHE_DIR)
     except Exception:
-        status_update("arial.zip is corrupted, re-downloading")
+        status_update("Font extraction failed, re-downloading arial.zip")
         redownload("arial.zip")
-        with zipfile.ZipFile(arial_path, 'r') as z:
-            z.extractall(CACHE_DIR)
+        if os.name == 'nt':
+            _extract_fonts_manual(arial_path)
+        else:
+            with zipfile.ZipFile(arial_path, 'r') as z:
+                z.extractall(CACHE_DIR)
+    os.makedirs(fonts_dir, exist_ok=True)
 
 
 def _get_template_filename(peta, tipe, skala):
