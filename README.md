@@ -1,6 +1,23 @@
-#Map Creation
+# Create-Map-IDW
 
-Weather Map Generation Package for BMKG Papua Barat Daya.
+Automated weather map generation using IDW (Inverse Distance Weighting) spatial interpolation, built for [BMKG](https://www.bmkg.go.id/) regional offices in Papua Barat and Papua Barat Daya.
+
+## Overview
+
+Create-Map-IDW is a Python package designed to run in **Google Colab**. It produces publication-ready weather maps from station observation and forecast data, with support for multiple map types, template overlays, AI-generated captions, and Word document reports.
+
+## Features
+
+- **7 map types** — Prakiraan (forecast), Analisis (analysis), Verifikasi (verification), Probabilistik, Normal, Bias, and HTH
+- **IDW interpolation** — Numba JIT-accelerated spatial interpolation with KDTree neighbor lookup
+- **Template overlays** — Composites raw maps onto publication-ready templates with legends and backgrounds
+- **Ocean depth layer** — Optional bathymetry/elevation raster overlay
+- **Flexible regions** — Province or district-level maps with fuzzy name matching
+- **AI captions** — Auto-generated Indonesian-language narratives via Google Gemini API
+- **Word reports** — `.docx` output with official letterhead, maps, and AI analysis
+- **CSV export** — Export clipped interpolation data
+- **Verification metrics** — Accuracy, HSS (Heidke Skill Score), and PSS (Peirce Skill Score)
+- **Execution logging** — Automatic logging of every run to `execution_log.csv`
 
 ## Installation
 
@@ -8,52 +25,91 @@ Weather Map Generation Package for BMKG Papua Barat Daya.
 pip install git+https://github.com/nashathur/Create-Map-IDW.git
 ```
 
-## Usage in Google Colab
+Requires Python >= 3.9.
+
+## Quick Start (Google Colab)
 
 ```python
 from IPython.display import clear_output
 try:
-    from Main import cfg, execute, upload_files
+    from Main import cfg, execute
 except ImportError:
     !pip install git+https://github.com/nashathur/Create-Map-IDW.git -q
-    clear_output()
-    from Main import cfg, execute, upload_files
+    from Main import cfg, execute
 
-# SEKARANG BISA PROCESS HTH !!!
-# step-stepnya:
-#   1. atur settingan berikut
-#   2. klik Run all atau tombol play
-#   3. tunggu sebentar persiapan file dan script
-#   4. upload file dengan klik 'Browse' di bawah (jika peta verifikasi: tunggu 'Browse' upload file kedua)
-#   5. tunggu proses berjalan
-#   *untuk HTH, upload file draft HTH ArcGIS (yang penting ada kolom bujur, lintang, indeks HTH)
-# Configuration
-cfg.jenis_peta = 'HTH'         # Pilihan: Prakiraan, Analisis, Verifikasi, Probabilistik, Normal, Bias, HTH (jangan lupa diberi tanda petik "")
-cfg.tipe_peta  = ['Curah Hujan']     # 'Curah Hujan', 'Sifat Hujan'   (((bisa pilih dua-duanya, pisahkan dengan koma)))
-cfg.skala_peta = "Bulanan"           # 'Bulanan', 'Dasarian'
-cfg.wilayah    = "Papua Barat, Papua Barat Daya"
-# > ((bisa kabupaten atau provinsi dan lebih dari satu, pisahkan dengan koma)) *diganti sesuai nama provinsi yang diinginkan (contoh jika dipilih lebih dari satu prov: Jawa Timur, Bali)
+# Map type
+cfg.jenis_peta = "Analisis"            # Prakiraan | Analisis | Verifikasi | Probabilistik | Normal | Bias | HTH
+cfg.tipe_peta  = ['Sifat Hujan']       # 'Curah Hujan' (rainfall) | 'Sifat Hujan' (rainfall characteristics)
+cfg.skala_peta = 'Dasarian'            # 'Bulanan' (monthly) | 'Dasarian' (10-day period)
+cfg.wilayah    = "Papua Barat,Papua Barat Daya"  # Province/district names, comma-separated
 
-# settingan untuk judul dan waktu (title)
+# Title date
 cfg.year     = 2026
-cfg.month    = 2                     # bulan 1-12
-cfg.dasarian = 3                     # dasarian 1-3
+cfg.month    = 2                        # 1–12
+cfg.dasarian = 2                        # 1–3
 
-# settingan untuk versi / update date (subtitle)
+# Subtitle / version date
 cfg.year_ver     = 2026
 cfg.month_ver    = 2
-cfg.dasarian_ver = 2
+cfg.dasarian_ver = 3
 
-# layer laut
-cfg.hgt = True      # (True / False)
+# Options
+cfg.hgt         = True                  # Ocean depth layer
+cfg.png_only    = False                 # Raw PNG only (no template, no legend)
+cfg.create_word = True                  # Generate Word document report
+cfg.export_csv  = False                 # Export interpolated data to CSV
+cfg.verif_mode  = 'kuantitatif'         # 'kuantitatif' (9 classes) | 'kualitatif' (4 classes)
 
-# cuma png (no laut, no legend, no background) HARUS DOWNLOAD ('Save Image As...') DULU, supaya background transparant
-cfg.png_only = False  # (True / False)
-
-# upload file (tunggu beberapa saat untuk upload file, klik 'Browse')
-upload_files()
-
+# Run
 for tipe in cfg.tipe_peta:
     clear_output()
-    execute(cfg.jenis_peta, tipe, cfg.skala_peta, cfg.month)
+    map_data = execute(cfg.jenis_peta, tipe, cfg.skala_peta, cfg.month)
 ```
+
+## Configuration Reference
+
+### Map Settings
+
+| Option | Type | Values | Description |
+|---|---|---|---|
+| `cfg.jenis_peta` | `str` | `Prakiraan`, `Analisis`, `Verifikasi`, `Probabilistik`, `Normal`, `Bias`, `HTH` | Map category |
+| `cfg.tipe_peta` | `list[str]` | `['Curah Hujan']`, `['Sifat Hujan']`, or both | Rainfall metric(s) to map |
+| `cfg.skala_peta` | `str` | `Bulanan`, `Dasarian` | Time scale (monthly or 10-day) |
+| `cfg.wilayah` | `str` | Province/district names | Target region(s), comma-separated |
+
+### Date Settings
+
+| Option | Type | Description |
+|---|---|---|
+| `cfg.year` | `int` | Map title year |
+| `cfg.month` | `int` | Map title month (1–12) |
+| `cfg.dasarian` | `int` | Map title dasarian (1–3) |
+| `cfg.year_ver` | `int` | Subtitle / version year |
+| `cfg.month_ver` | `int` | Subtitle / version month |
+| `cfg.dasarian_ver` | `int` | Subtitle / version dasarian |
+
+### Feature Flags
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `cfg.hgt` | `bool` | `True` | Enable ocean depth / elevation layer |
+| `cfg.png_only` | `bool` | `False` | Output raw PNG only — disables template overlay, HGT layer, and Word generation |
+| `cfg.create_word` | `bool` | `False` | Generate a `.docx` report with maps and AI-generated analysis |
+| `cfg.export_csv` | `bool` | `False` | Export clipped interpolation data to CSV |
+| `cfg.verif_mode` | `str` | `kuantitatif` | Verification method: `kuantitatif` (9 rainfall classes) or `kualitatif` (4 classes) |
+
+## Supported Map Types
+
+| `jenis_peta` | `tipe_peta` | `skala_peta` | Description |
+|---|---|---|---|
+| Prakiraan | Curah Hujan / Sifat Hujan | Bulanan / Dasarian | Rainfall forecast maps |
+| Analisis | Curah Hujan / Sifat Hujan | Bulanan / Dasarian | Observation analysis maps |
+| Verifikasi | — | — | Forecast verification with accuracy metrics |
+| Probabilistik | Curah Hujan | Bulanan / Dasarian | Probabilistic forecast (6 threshold sub-maps) |
+| Normal | — | — | 1991–2020 climate normal reference |
+| Bias | — | — | Forecast bias map |
+| HTH | — | — | Hari Tanpa Hujan (consecutive dry days) index |
+
+## Dependencies
+
+pandas, numpy, geopandas, matplotlib, scipy, rioxarray, thefuzz, numba, Pillow, openpyxl, pyarrow, docxtpl, python-docx
