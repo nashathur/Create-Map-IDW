@@ -64,7 +64,7 @@ def _upload_local(cfg, status_update):
 
     if jenis == 'HTH':
         status_update("Select HTH file (Excel/CSV):")
-        path = filedialog.askopenfilename(title="Select HTH file", filetypes=filetypes)
+        path = filedialog.askopenfilename(parent=root, title="Select HTH file", filetypes=filetypes)
         if not path:
             raise FileNotFoundError("No HTH file selected.")
         cfg.file_hth = path
@@ -81,14 +81,14 @@ def _upload_local(cfg, status_update):
 
     if needs_prakiraan:
         status_update("Select prakiraan file:")
-        path = filedialog.askopenfilename(title="Select prakiraan file", filetypes=filetypes)
+        path = filedialog.askopenfilename(parent=root, title="Select prakiraan file", filetypes=filetypes)
         if not path:
             raise FileNotFoundError("No prakiraan file selected.")
         cfg.file_prakiraan = path
 
     if needs_analisis:
         status_update("Select analisis file:")
-        path = filedialog.askopenfilename(title="Select analisis file", filetypes=filetypes)
+        path = filedialog.askopenfilename(parent=root, title="Select analisis file", filetypes=filetypes)
         if not path:
             raise FileNotFoundError("No analisis file selected.")
         cfg.file_analisis = path
