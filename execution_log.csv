@@ -94,3 +94,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-02-26T03:45:50.418361,Probabilistik,Curah Hujan,Dasarian,Papua Barat,2026,2,2,2026,2,1,False,True,peta_20260226_034549_PCH_Prob_das_2026.02.das2_ver_2026.02.1.png,144.74
 2026-02-26T04:01:50.282856,Probabilistik,Curah Hujan,Dasarian,Papua Barat,2026,2,2,2026,2,1,False,True,peta_20260226_040149_PCH_Prob_das_2026.02.das2_ver_2026.02.1.png,142.46
 2026-02-26T04:07:16.022828,Probabilistik,Curah Hujan,Dasarian,Papua Barat Daya,2026,2,2,2026,2,2,False,True,peta_20260226_040715_PCH_Prob_das_2026.02.das2_ver_2026.02.2.png,153.03
+2026-02-26T05:14:04.757928,Probabilistik,Curah Hujan,Dasarian,Papua Barat Daya,2026,2,3,2026,2,2,False,True,peta_20260226_051404_PCH_Prob_das_2026.02.das3_ver_2026.02.2.png,164.69
