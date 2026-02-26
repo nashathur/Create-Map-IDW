@@ -797,21 +797,13 @@ def get_visual_interpretation(map_data, analysis_text=None):
 def get_full_narration(map_data):
     """Generate complete narration for a BMKG map.
 
-    Combines structured AI analysis with freeform visual interpretation
-    of the map image.
-
     Args:
         map_data: dict returned by execute() or overlay_image().
 
     Returns:
-        str: Combined narration paragraph (analysis + visual interpretation).
+        str: Generated narration paragraph in Bahasa Indonesia.
     """
-    analysis = get_analysis(map_data)
-    visual = get_visual_interpretation(map_data, analysis_text=analysis)
-
-    if visual and not visual.startswith("Interpretasi visual tidak tersedia"):
-        return f"{analysis} {visual}"
-    return analysis
+    return get_analysis(map_data)
 
 
 # =============================================================================
