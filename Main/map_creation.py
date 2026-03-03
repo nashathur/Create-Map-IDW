@@ -242,7 +242,7 @@ def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=N
         'hth_table_data': hth_table_data,
     }
 
-    if not cfg.png_only:
+    if not cfg.png_only and cfg.peta != 'Bias':
         plt.close(fig)
     gc.collect()
     status_update("Map creation complete")
