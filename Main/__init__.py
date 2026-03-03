@@ -153,6 +153,12 @@ def execute(peta, tipe, skala, month):
             _export_csv(plot_data)
 
     if cfg.png_only or peta == 'Bias':
+        if peta == 'Bias':
+            try:
+                from IPython.display import display
+                display(plot_data['image'])
+            except ImportError:
+                pass
         output_filename = plot_data.get('file_name', 'png_only')
         status_update(f"Completed: {output_filename}")
         duration = time.time() - start_time

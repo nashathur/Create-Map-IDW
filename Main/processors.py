@@ -496,6 +496,7 @@ def bias_map():
     fig.savefig(buf, format='png', dpi=200, transparent=True, bbox_inches='tight')
     buf.seek(0)
     plot_data['image'] = load_image_to_memory(buf)
+    plt.close(fig)
     return plot_data
 
 
