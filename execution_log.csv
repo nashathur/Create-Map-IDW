@@ -214,3 +214,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-04-10T06:45:42.915559,Analisis,Sifat Hujan,Dasarian,Papua Barat,2026,4,1,2026,4,1,False,True,peta_20260410_064542_ASHdas_2026.04.png,26.69
 2026-04-10T06:50:18.393431,Analisis,Sifat Hujan,Dasarian,Papua Barat Daya,2026,4,1,2026,4,1,False,True,peta_20260410_065017_ASHdas_2026.04.png,28.24
 2026-04-10T07:17:34.857348,Analisis,Sifat Hujan,Dasarian,Papua Barat Daya,2026,4,1,2026,4,1,True,False,plot_20260410_071723_ASHdas_2026.04.png,15.89
+2026-04-10T07:20:46.676110,Analisis,Sifat Hujan,Dasarian,Papua Barat,2026,4,1,2026,4,1,True,False,plot_20260410_072035_ASHdas_2026.04.png,14.57
