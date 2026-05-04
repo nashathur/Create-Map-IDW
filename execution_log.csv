@@ -294,3 +294,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-05-04T06:12:43.380930,Verifikasi,Curah  Hujan,Dasarian,"Papua Barat, Papua Barat Daya",2026,4,2,2026,4,2,False,False,peta_20260504_061242_VERqual_2026.04.das2_ver_2026.04.2.png,53.34
 2026-05-04T06:19:02.411669,Verifikasi,Curah  Hujan,Dasarian,"Papua Barat, Papua Barat Daya",2026,4,3,2026,4,3,False,False,peta_20260504_061901_VERqual_2026.04.das3_ver_2026.04.3.png,52.14
 2026-05-04T06:31:15.569983,Analisis,Curah Hujan,Bulanan,"Papua Barat, Papua Barat Daya",2026,4,3,2026,4,3,False,False,peta_20260504_063114_ACH_2026.04.png,39.17
+2026-05-04T06:35:29.680440,Analisis,Curah Hujan,Dasarian,"Papua Barat, Papua Barat Daya",2026,4,3,2026,4,3,False,False,peta_20260504_063529_ACHdas_2026.04.png,39.55
