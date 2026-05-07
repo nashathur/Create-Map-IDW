@@ -381,3 +381,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-05-07T08:28:40.436678,Analisis,Curah Hujan,Bulanan,Papua Barat,2026,4,3,2026,5,1,False,True,peta_20260507_082839_ACH_2026.04.png,25.45
 2026-05-07T08:29:22.482219,Analisis,Curah Hujan,Bulanan,Papua Barat Daya,2026,4,3,2026,5,1,False,True,peta_20260507_082921_ACH_2026.04.png,26.71
 2026-05-07T08:30:17.271073,Analisis,Sifat Hujan,Bulanan,Papua Barat,2026,4,3,2026,5,1,False,True,peta_20260507_083016_ASH_2026.04.png,26.08
+2026-05-07T08:31:04.678228,Analisis,Sifat Hujan,Bulanan,Papua Barat Daya,2026,4,3,2026,5,1,False,True,peta_20260507_083103_ASH_2026.04.png,33.16
