@@ -227,6 +227,48 @@ def get_ash():
     return plot_data
 
 # =============================================================================
+# SPI (STANDARDIZED PRECIPITATION INDEX)
+# =============================================================================
+
+def get_spi():
+    status_update("Processing SPI")
+
+    # SPI is sourced from either the prakiraan or analisis file depending on
+    # cfg.peta (Prakiraan / Analisis). It is always a 1-monthly index.
+    if cfg.peta == 'Analisis':
+        df_spi = load_analisis()
+    else:
+        df_spi = load_prakiraan()
+
+    if 'SPI' not in df_spi.columns:
+        raise ValueError(
+            f"Kolom 'SPI' tidak ditemukan pada file. "
+            f"Kolom yang tersedia: {list(df_spi.columns)}. "
+            f"Untuk peta SPI, file harus memiliki kolom VALSPI/SPI."
+        )
+    value = 'SPI'
+
+    # Official BMKG SPI 7-class classification (McKee et al., 1993 breakpoints).
+    # Sangat Kering (dry) -> Normal -> Sangat Basah (wet).
+    levels = [-10, -2, -1.5, -1, 1, 1.5, 2, 10]
+    color = ['#730000',  # Sangat Kering  (<= -2)
+             '#FF0000',  # Kering         (-2 .. -1.5)
+             '#E69800',  # Agak Kering    (-1.5 .. -1)
+             '#FFFFBE',  # Normal         (-1 .. 1)
+             '#7FCC00',  # Agak Basah     (1 .. 1.5)
+             '#267300',  # Basah          (1.5 .. 2)
+             '#00B0F0']  # Sangat Basah   (>= 2)
+
+    info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
+
+    jenis = 'SPI'
+    status_update(f"Creating {jenis} Map")
+    plot_data = create_map(df_spi, value, jenis, color, levels, info)
+    del df_spi
+    return plot_data
+
+
+# =============================================================================
 # PROBABILISTIK
 # =============================================================================
 

@@ -114,6 +114,7 @@ execute(peta, tipe, skala, month)
     │   ├── get_psh()    → PSH, PSHdas
     │   ├── get_ach()    → ACH, ACHdas
     │   ├── get_ash()    → ASH, ASHdas
+    │   ├── get_spi()    → SPI
     │   ├── get_pch_prob() → PCH_Prob, PCH_Prob_das (6 sub-maps)
     │   ├── get_verif()  → VERquan | VERqual
     │   ├── get_normal() → NORMAL
@@ -145,6 +146,7 @@ Each processor function calls `create_map()` or `create_scatter_map()` and retur
 | Analisis | Curah Hujan | Dasarian | ACHdas |
 | Analisis | Sifat Hujan | Bulanan | ASH |
 | Analisis | Sifat Hujan | Dasarian | ASHdas |
+| Prakiraan / Analisis | SPI | — (always 1-monthly) | SPI |
 | Probabilistik | Curah Hujan | Bulanan/Dasarian | PCH_Prob / PCH_Prob_das |
 | Verifikasi | — | — | VERquan / VERqual |
 | Normal | — | — | NORMAL |
@@ -169,6 +171,7 @@ All input DataFrames must use these normalized column names after loading:
 | `SH%` | — | Sifat Hujan percentage (bulanan ASH) |
 | `b50`, `b100`, `b150`, `a50`, `a100`, `a150` | — | Probabilistic columns |
 | `INDEKS_HTH` | INDEKS HTH, INDEKS_HTH, INDEX_HTH | HTH index |
+| `SPI` | SPI, VALSPI, VAL_SPI, NILAI_SPI | Standardized Precipitation Index (continuous) |
 
 ### Data Categorization
 
