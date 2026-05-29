@@ -248,10 +248,16 @@ def get_spi():
         )
     value = 'SPI'
 
-    # Standard 7-class SPI classification (McKee et al., 1993).
-    # Brown (dry) -> white (near normal) -> blue (wet).
+    # Official BMKG SPI 7-class classification (McKee et al., 1993 breakpoints).
+    # Sangat Kering (dry) -> Normal -> Sangat Basah (wet).
     levels = [-10, -2, -1.5, -1, 1, 1.5, 2, 10]
-    color = ['#7B3F00', '#B5651D', '#E3A857', '#FFFFFF', '#9CC3E0', '#4A90D9', '#08306B']
+    color = ['#730000',  # Sangat Kering  (<= -2)
+             '#FF0000',  # Kering         (-2 .. -1.5)
+             '#E69800',  # Agak Kering    (-1.5 .. -1)
+             '#FFFFBE',  # Normal         (-1 .. 1)
+             '#7FCC00',  # Agak Basah     (1 .. 1.5)
+             '#267300',  # Basah          (1.5 .. 2)
+             '#00B0F0']  # Sangat Basah   (>= 2)
 
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
