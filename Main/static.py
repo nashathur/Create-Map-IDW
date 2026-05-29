@@ -44,6 +44,8 @@ def _get_template_filename(peta, tipe, skala):
     if peta in templates:
         return templates[peta]
     if peta in ('Prakiraan', 'Analisis'):
+        if tipe == 'SPI':
+            return 'template_spi.png'
         default = {
             'Bulanan': {'Curah Hujan': 'template_ch_bulanan.png', 'Sifat Hujan': 'template_sh.png'},
             'Dasarian': {'Curah Hujan': 'template_ch_das.png', 'Sifat Hujan': 'template_sh.png'},

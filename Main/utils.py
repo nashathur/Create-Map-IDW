@@ -97,6 +97,8 @@ def _normalize_columns(df):
             col_map[col] = 'SH'
         elif cu in ('SH%', 'SH_PERSEN', 'SIFAT_HUJAN_PERSEN'):
             col_map[col] = 'SH%'
+        elif cu in ('SPI', 'VALSPI', 'VAL_SPI', 'NILAI_SPI'):
+            col_map[col] = 'SPI'
     if col_map:
         df = df.rename(columns=col_map)
     return df
