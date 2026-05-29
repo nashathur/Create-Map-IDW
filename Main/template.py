@@ -117,32 +117,37 @@ def _draw_hth_text(draw, plot_data, text_x):
     )
 
 def _draw_spi_text(draw, plot_data, text_x, text_y, spacing):
-    """Draw SPI map title text (4 fixed rows).
+    """Draw SPI map title text (6 rows).
 
     Row 1: PETA <PRAKIRAAN|ANALISIS>
-    Row 2: INDEKS PRESIPITASI TERSTANDARISASI (SPI)
-    Row 3: 1-BULANAN
-    Row 4: <provinsi/wilayah>
+    Row 2: STANDARDIZED PRECIPITATION INDEX (SPI)
+    Row 3: INDEKS PRESIPITASI TERSTANDARISASI
+    Row 4: 1-BULANAN
+    Row 5: BULAN <month> <year>
+    Row 6: <wilayah>
     """
     peta = plot_data['peta']
+    month = plot_data['month']
+    year = plot_data['year']
     nama_wilayah = plot_data['nama_wilayah']
 
     title = f"PETA {peta}".upper()
-    line_spi = "INDEKS PRESIPITASI TERSTANDARISASI (SPI)"
+    line_spi_en = "STANDARDIZED PRECIPITATION INDEX (SPI)"
+    line_spi_id = "INDEKS PRESIPITASI TERSTANDARISASI"
     line_skala = "1-BULANAN"
+    line_periode = f"BULAN {number_to_bulan(month)} {year}".upper()
     subtitle_wilayah = nama_wilayah.upper()
 
     PANEL_WIDTH = 996
     TEXT_PADDING = 40
+    max_width = PANEL_WIDTH - TEXT_PADDING
 
     font_title = ImageFont.truetype(font_path('bold'), size=52)
-    font_spi = _get_scaled_font(
-        line_spi, font_path('bold'),
-        max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=46)
+    font_spi_en = _get_scaled_font(line_spi_en, font_path('bold'), max_width=max_width, min_size=24, max_size=44)
+    font_spi_id = _get_scaled_font(line_spi_id, font_path('bold'), max_width=max_width, min_size=24, max_size=44)
     font_skala = ImageFont.truetype(font_path('bold'), size=46)
-    font_wilayah = _get_scaled_font(
-        subtitle_wilayah, font_path('bold'),
-        max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=40)
+    font_periode = ImageFont.truetype(font_path('bold'), size=46)
+    font_wilayah = _get_scaled_font(subtitle_wilayah, font_path('bold'), max_width=max_width, min_size=24, max_size=40)
 
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -150,9 +155,11 @@ def _draw_spi_text(draw, plot_data, text_x, text_y, spacing):
         draw.text((text_x - tw // 2, y - (bbox[3] - bbox[1]) // 2), text, fill=fill, font=font)
 
     draw_centered(text_y, title, font_title)
-    draw_centered(text_y + spacing, line_spi, font_spi)
-    draw_centered(text_y + spacing * 2, line_skala, font_skala)
-    draw_centered(text_y + spacing * 3, subtitle_wilayah, font_wilayah)
+    draw_centered(text_y + spacing, line_spi_en, font_spi_en)
+    draw_centered(text_y + spacing * 2, line_spi_id, font_spi_id)
+    draw_centered(text_y + spacing * 3, line_skala, font_skala)
+    draw_centered(text_y + spacing * 4, line_periode, font_periode)
+    draw_centered(text_y + spacing * 5, subtitle_wilayah, font_wilayah)
 
 
 def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
@@ -331,7 +338,7 @@ def overlay_image(plot_data):
         }, text_x=822, text_y=1916, spacing=55)
     elif jenis == 'SPI':
         _draw_spi_text(draw, {
-            'peta': peta, 'nama_wilayah': nama_wilayah,
+            'peta': peta, 'month': month, 'year': year, 'nama_wilayah': nama_wilayah,
         }, text_x=2940, text_y=172, spacing=60)
     else:
         _draw_default_text(draw, {
