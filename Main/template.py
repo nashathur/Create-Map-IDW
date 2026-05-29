@@ -32,6 +32,8 @@ def image_template():
     try:
         if cfg.peta in templates:
             template_filename = templates[cfg.peta]
+        elif cfg.peta in ['Analisis', 'Prakiraan'] and cfg.tipe == 'SPI':
+            template_filename = 'template_spi.png'
         elif cfg.peta in ['Analisis', 'Prakiraan']:
             template_filename = templates['default'][cfg.skala][cfg.tipe]
         else:
@@ -113,6 +115,45 @@ def _draw_hth_text(draw, plot_data, text_x):
         text_y_start + len(title_lines) * spacing + 15,
         update_line, font_update, fill='blue'
     )
+
+def _draw_spi_text(draw, plot_data, text_x, text_y, spacing):
+    """Draw SPI map title text (4 fixed rows).
+
+    Row 1: PETA <PRAKIRAAN|ANALISIS>
+    Row 2: INDEKS PRESIPITASI TERSTANDARISASI (SPI)
+    Row 3: 1-BULANAN
+    Row 4: <provinsi/wilayah>
+    """
+    peta = plot_data['peta']
+    nama_wilayah = plot_data['nama_wilayah']
+
+    title = f"PETA {peta}".upper()
+    line_spi = "INDEKS PRESIPITASI TERSTANDARISASI (SPI)"
+    line_skala = "1-BULANAN"
+    subtitle_wilayah = nama_wilayah.upper()
+
+    PANEL_WIDTH = 996
+    TEXT_PADDING = 40
+
+    font_title = ImageFont.truetype(font_path('bold'), size=52)
+    font_spi = _get_scaled_font(
+        line_spi, font_path('bold'),
+        max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=46)
+    font_skala = ImageFont.truetype(font_path('bold'), size=46)
+    font_wilayah = _get_scaled_font(
+        subtitle_wilayah, font_path('bold'),
+        max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=40)
+
+    def draw_centered(y, text, font, fill='black'):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text((text_x - tw // 2, y - (bbox[3] - bbox[1]) // 2), text, fill=fill, font=font)
+
+    draw_centered(text_y, title, font_title)
+    draw_centered(text_y + spacing, line_spi, font_spi)
+    draw_centered(text_y + spacing * 2, line_skala, font_skala)
+    draw_centered(text_y + spacing * 3, subtitle_wilayah, font_wilayah)
+
 
 def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
     """Draw standard map title text (Prakiraan, Analisis, etc.)."""
@@ -288,6 +329,10 @@ def overlay_image(plot_data):
             'dasarian': dasarian, 'dasarian_ver': dasarian_ver,
             'month_ver': month_ver, 'year_ver': year_ver, 'nama_wilayah': nama_wilayah,
         }, text_x=822, text_y=1916, spacing=55)
+    elif jenis == 'SPI':
+        _draw_spi_text(draw, {
+            'peta': peta, 'nama_wilayah': nama_wilayah,
+        }, text_x=2940, text_y=172, spacing=60)
     else:
         _draw_default_text(draw, {
             'peta': peta, 'tipe': tipe, 'skala': skala, 'year': year, 'month': month,
