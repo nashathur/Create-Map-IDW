@@ -44,6 +44,7 @@ _LAZY_MAP = {
     'get_normal':                 ('.processors', 'get_normal'),
     'bias_map':                   ('.processors', 'bias_map'),
     'get_hth':                    ('.processors', 'get_hth'),
+    'get_spi':                    ('.processors', 'get_spi'),
     'load_hth':                   ('.processors', 'load_hth'),
     'run_stress_test':            ('.stress', 'run_stress_test'),
     'random_config':              ('.stress', 'random_config'),
@@ -72,7 +73,7 @@ def execute(peta, tipe, skala, month):
     from .logger import log_execution
     from .processors import (
         get_pch, get_psh, get_ach, get_ash, get_pch_prob,
-        get_verif, get_normal, bias_map, get_hth,
+        get_verif, get_normal, bias_map, get_hth, get_spi,
     )
     from .stress import run_stress_test
     from .word import arrange_word
@@ -114,6 +115,9 @@ def execute(peta, tipe, skala, month):
         elif tipe == 'Sifat Hujan':
             status_update("Getting PSH data...")
             plot_data = get_psh()
+        elif tipe == 'SPI':
+            status_update("Getting SPI data...")
+            plot_data = get_spi()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
     elif peta == 'Analisis':
@@ -123,6 +127,9 @@ def execute(peta, tipe, skala, month):
         elif tipe == 'Sifat Hujan':
             status_update("Getting ASH data...")
             plot_data = get_ash()
+        elif tipe == 'SPI':
+            status_update("Getting SPI data...")
+            plot_data = get_spi()
         else:
             raise ValueError(f"Unknown tipe: {tipe}")
     elif peta == 'Probabilistik':
@@ -202,6 +209,7 @@ __all__ = [
     'get_normal',
     'bias_map',
     'get_hth',
+    'get_spi',
     'status_update',
     'get_analysis',
     'get_full_narration',

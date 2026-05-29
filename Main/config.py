@@ -127,6 +127,7 @@ STATIC_FILES = {
     'template_verifikasi.png': f"{GITHUB_BASE}/template_verifikasi.png",
     'template_probabilistik.png': f"{GITHUB_BASE}/template_probabilistik.png",
     'template_hth.png': f"{GITHUB_BASE}/template_hth.png",
+    'template_spi.png': f"{GITHUB_BASE}/template_spi.png",
     'ARIAL.TTF': f"{GITHUB_BASE}/ARIAL.TTF",
     'ARIALBD.TTF': f"{GITHUB_BASE}/ARIALBD.TTF",
     'ArialMdm.ttf': f"{GITHUB_BASE}/ArialMdm.ttf",
