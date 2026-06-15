@@ -507,3 +507,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-06-15T02:10:06.873071,Probabilistik,Curah Hujan,Bulanan,Papua Barat,2026,6,1,2026,8,1,False,True,peta_20260615_021006_PCH_Prob_2026.06_ver_2026.08.png,84.96
 2026-06-15T02:13:37.620177,Prakiraan,Curah Hujan,Bulanan,Papua Barat,2026,7,1,2026,6,1,False,True,peta_20260615_021337_PCH_2026.07_ver_2026.06.png,31.8
 2026-06-15T02:16:10.786437,Prakiraan,Curah Hujan,Bulanan,"Papua Barat, Papua Barat Daya",2026,7,1,2026,6,1,False,True,peta_20260615_021610_PCH_2026.07_ver_2026.06.png,48.78
+2026-06-15T02:18:39.666462,Prakiraan,Sifat Hujan,Bulanan,"Papua Barat, Papua Barat Daya",2026,7,1,2026,6,1,False,True,peta_20260615_021839_PSH_2026.07_ver_2026.06.png,40.21
