@@ -539,3 +539,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-06-22T03:34:37.908548,Prakiraan,Curah Hujan,Dasarian,Papua Barat Daya,2026,6,3,2026,6,3,True,False,plot_20260622_033427_PCHdas_2026.06.das3_ver_2026.06.3.png,14.27
 2026-06-22T04:06:55.794597,HTH,Curah Hujan,Dasarian,"Papua Barat Daya, Papua Barat",2026,6,3,2026,6,3,True,False,plot_20260622_040646_HTH_2026.06.png,20.33
 2026-06-22T04:11:46.874406,HTH,Curah Hujan,Dasarian,"Papua Barat Daya, Papua Barat",2026,6,3,2026,6,3,True,False,plot_20260622_041138_HTH_2026.06.png,17.25
+2026-06-22T13:09:34.743016,Prakiraan,Curah Hujan,Dasarian,Papua Barat,2026,8,2,2026,2,3,False,True,peta_20260622_130934_PCHdas_2026.08.das2_ver_2026.02.3.png,34.29
