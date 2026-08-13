@@ -810,3 +810,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-08-13T01:54:02.157412,Prakiraan,Sifat Hujan,Bulanan,"Papua Barat,Papua Barat Daya",2026,7,1,2026,8,2,False,True,peta_20260813_015401_PSH_2026.07_ver_2026.08.png,55.91
 2026-08-13T02:00:23.113893,Prakiraan,Sifat Hujan,Bulanan,"Papua Barat,Papua Barat Daya",2026,8,1,2026,8,2,False,True,peta_20260813_020022_PSH_2026.08_ver_2026.08.png,48.61
 2026-08-13T05:49:11.235445,Prakiraan,Sifat Hujan,Bulanan,"Papua Barat,Papua Barat Daya",2026,1,1,2026,8,2,False,True,peta_20260813_054910_PSH_2026.01_ver_2026.08.png,64.52
+2026-08-13T06:04:14.931407,Prakiraan,Curah Hujan,Bulanan,"Papua Barat,Papua Barat Daya",2026,1,1,2026,8,2,False,True,peta_20260813_060414_PCH_2026.01_ver_2026.08.png,56.93
