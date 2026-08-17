@@ -281,6 +281,28 @@ def clear_basemap_cache():
     status_update("Basemap cache cleared")
 
 
+def clear_static_cache():
+    """Drop the cached idkab shapefile and HGT raster.
+
+    Both are wilayah-independent (whole-Indonesia shapefile, whole HGT raster),
+    so unlike _basemap_cache they are correct to hold as singletons -- there is
+    no staleness issue. This exists to reclaim memory in a long Colab session,
+    and to recover if a static file is replaced or was corrupt on first load.
+    """
+    global _idkab_cache, _hgt_cache
+    if _hgt_cache is not None:
+        data = _hgt_cache.get('data') if isinstance(_hgt_cache, dict) else None
+        close = getattr(data, 'close', None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+    _idkab_cache = None
+    _hgt_cache = None
+    status_update("Static cache cleared")
+
+
 def get_hgt_data():
     global _hgt_cache
     if _hgt_cache is None:

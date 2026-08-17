@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from PIL import Image
-from numba import njit, prange
 
 from .config import cfg, CACHE_DIR, KLASIFIKASI
 from .status import update as status_update
@@ -49,20 +48,42 @@ def get_cached_file(folder_id, filename):
 # IDW INTERPOLATION
 # =============================================================================
 
-@njit(parallel=True)
+_idw_kernel = None
+
+
+def _get_idw_kernel():
+    """Build (and cache) the Numba IDW kernel on first use.
+
+    numba is imported here rather than at module scope: utils.py is imported on
+    essentially every run, but IDW only runs when it is the selected method, so
+    the import cost should not be paid unconditionally.
+    """
+    global _idw_kernel
+    if _idw_kernel is None:
+        from numba import njit, prange
+
+        @njit(parallel=True)
+        def kernel(values, dists, idx, power):
+            n = dists.shape[0]
+            k = dists.shape[1]
+            result = np.empty(n, dtype=np.float32)
+            for i in prange(n):
+                w_sum = 0.0
+                val_sum = 0.0
+                for j in range(k):
+                    w = 1.0 / (dists[i, j]**power + 1e-10)
+                    w_sum += w
+                    val_sum += w * values[idx[i, j]]
+                result[i] = val_sum / w_sum
+            return result
+
+        _idw_kernel = kernel
+    return _idw_kernel
+
+
 def idw_numba(values, dists, idx, power):
-    n = dists.shape[0]
-    k = dists.shape[1]
-    result = np.empty(n, dtype=np.float32)
-    for i in prange(n):
-        w_sum = 0.0
-        val_sum = 0.0
-        for j in range(k):
-            w = 1.0 / (dists[i, j]**power + 1e-10)
-            w_sum += w
-            val_sum += w * values[idx[i, j]]
-        result[i] = val_sum / w_sum
-    return result
+    """Inverse-distance-weighted interpolation over precomputed neighbours."""
+    return _get_idw_kernel()(values, dists, idx, power)
 
 
 # =============================================================================
