@@ -371,6 +371,80 @@ def _interpolate_regular_grid(lon_pts, lat_pts, values, fine, method='linear'):
     return interpolator(fine['query']).reshape(fine['shape'])
 
 
+def _is_regular_lattice(coords, tolerance=None):
+    """True if sorted distinct coords are evenly spaced.
+
+    Keys on spacing regularity rather than on the lattice being fully populated:
+    gridded model output legitimately has holes over ocean, and the regular-grid
+    path already handles those via nearest-fill.
+    """
+    tolerance = INTERP['spacing_tolerance'] if tolerance is None else tolerance
+    uniq = np.sort(np.unique(coords[~np.isnan(coords)]))
+    if uniq.size < 3:
+        return True   # too few distinct values to call it irregular
+    diffs = np.diff(uniq)
+    step = np.median(diffs)
+    if step <= 0:
+        return False
+    return bool(np.all(np.abs(diffs - step) <= tolerance * step))
+
+
+def _resolve_interp_method(lon_pts, lat_pts, is_discrete):
+    """Decide which interpolator to run, and say why.
+
+    Returns (method, reason). Discrete fields always force 'nearest' -- verif
+    maps pass 0/1 and must not be smoothed into intermediate values.
+    """
+    if is_discrete:
+        return 'nearest', 'data diskrit'
+
+    configured = INTERP.get('method', 'auto')
+    if configured != 'auto':
+        return configured, 'diatur di INTERP'
+
+    regular = _is_regular_lattice(lon_pts) and _is_regular_lattice(lat_pts)
+    if regular:
+        return 'linear', 'grid teratur terdeteksi'
+    return 'idw', 'titik tidak teratur (stasiun)'
+
+
+def _interpolate_idw(lon_pts, lat_pts, values, fine):
+    """IDW over the k nearest stations, matching ArcGIS Spatial Analyst defaults.
+
+    power=2 and n_neighbors=12 are the ArcGIS defaults. NaN stations are dropped
+    before the tree is built -- otherwise a single NaN neighbour poisons every
+    output cell that references it.
+    """
+    from scipy.spatial import cKDTree
+    from .utils import idw_numba
+
+    valid = ~np.isnan(values)
+    if not valid.any():
+        raise ValueError("Semua nilai kosong (NaN); interpolasi IDW tidak bisa dijalankan.")
+    lon_v = lon_pts[valid]
+    lat_v = lat_pts[valid]
+    val_v = np.ascontiguousarray(values[valid], dtype=np.float32)
+
+    power = float(INTERP['power'])
+    k = min(int(INTERP['n_neighbors']), val_v.size)
+
+    tree = cKDTree(np.column_stack((lon_v, lat_v)))
+    # fine['query'] is (lat, lon); the tree is (lon, lat)
+    query_lonlat = fine['query'][:, ::-1]
+    dists, idx = tree.query(query_lonlat, k=k, workers=-1)
+    if k == 1:
+        dists = dists[:, None]
+        idx = idx[:, None]
+
+    smoothing = float(INTERP.get('smoothing', 0.0))
+    if smoothing:
+        dists = dists + smoothing
+
+    flat = idw_numba(val_v, np.ascontiguousarray(dists, dtype=np.float64),
+                     np.ascontiguousarray(idx, dtype=np.int64), power)
+    return flat.reshape(fine['shape']).astype(np.float64)
+
+
 def clear_spatial_cache():
     global _grid_cache, _lattice_cache
     _grid_cache = {}
@@ -408,14 +482,29 @@ def create_map(df, value, jenis, color, levels, info):
     unique_values = np.unique(values_full[~np.isnan(values_full)])
     is_discrete = len(unique_values) <= INTERP['discrete_threshold']
 
-    method = 'nearest' if is_discrete else getattr(cfg, 'interpolation_method', 'linear')
-    status_update(f"Starting interpolation (method={method})")
+    method, reason = _resolve_interp_method(lon_full, lat_full, is_discrete)
+    status_update(f"Starting interpolation (method={method}; {reason})")
 
-    interpolated = _interpolate_regular_grid(
-        lon_full, lat_full, values_full.astype(np.float32),
-        fine, method=method
-    )
-    
+    if method == 'idw':
+        interpolated = _interpolate_idw(
+            lon_full, lat_full, values_full.astype(np.float32), fine
+        )
+    else:
+        interpolated = _interpolate_regular_grid(
+            lon_full, lat_full, values_full.astype(np.float32),
+            fine, method=method
+        )
+
+    sigma = float(INTERP.get('gaussian_sigma', 0.0))
+    if sigma:
+        nanmask = np.isnan(interpolated)
+        if nanmask.any():
+            filled = np.where(nanmask, np.nanmean(interpolated), interpolated)
+            interpolated = gaussian_filter(filled, sigma=sigma)
+            interpolated[nanmask] = np.nan
+        else:
+            interpolated = gaussian_filter(interpolated, sigma=sigma)
+
     data_array = fine['template'].copy(data=interpolated)
     data_array = data_array.rio.set_spatial_dims("lon", "lat", inplace=True)
     clipped_data = data_array.rio.clip(ctx['shp_main'].geometry)
@@ -457,7 +546,15 @@ def create_map(df, value, jenis, color, levels, info):
 
     if 'spatial_ref' in clipped_data.coords:
         clipped_data = clipped_data.drop_vars('spatial_ref')
-    clipped_data.plot(ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False)
+    # pcolormesh (default) draws one rectangle per grid cell, so class
+    # boundaries follow cell edges as a staircase. contourf traces the level
+    # crossing between cell centres and fills smooth polygons instead.
+    if INTERP.get('render_mode') == 'contourf':
+        clipped_data.plot.contourf(
+            ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False
+        )
+    else:
+        clipped_data.plot(ax=ax, levels=levels, norm=norm, cmap=cmap, zorder=3, add_colorbar=False)
     ctx['shp_main'].plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
 
     if not cfg.png_only and cfg.peta == 'Probabilistik':
@@ -477,6 +574,10 @@ def create_map(df, value, jenis, color, levels, info):
         cbar.ax.tick_params(labelsize=14, rotation=45)
 
     plot_data = _finalize_map(fig, ax, ctx, levels, province_counts, kabupaten_counts, joined_gdf=joined)
+    # Which interpolator actually ran, and why. This replaces a notebook toggle:
+    # the operator does not choose the method, but can always see what was chosen.
+    plot_data['interp_method'] = method
+    plot_data['interp_reason'] = reason
 
     del clipped_data, interpolated
     return plot_data

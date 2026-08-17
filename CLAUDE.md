@@ -432,3 +432,19 @@ deliberately.
 These two palettes are similar but **not identical** (`#340900` vs `#340A00`,
 and five other channels). The difference exists in the original code and is
 preserved intentionally — do not "tidy" them into one entry.
+
+---
+
+## Testing
+
+There is a `tests/` directory now, run with `pytest tests/`. The tests are
+pure-numeric — no static files, no network, no Gemini/GitHub calls — so they run
+in a bare checkout with only the runtime dependencies installed.
+
+| File | Covers |
+|---|---|
+| `tests/test_interpolation.py` | Lattice detection, method resolution, IDW numerics, and a regression test that gridded input still produces exactly what it did before |
+| `tests/test_config_consolidation.py` | The two-table separation, `LEVELS`/`COLORS` alignment, and guards against literals creeping back out of `config.py` |
+
+`INTERP` is module-level mutable state; tests that change it use the
+`restore_interp` fixture so they do not leak into other tests.
