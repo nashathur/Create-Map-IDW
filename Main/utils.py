@@ -13,7 +13,7 @@ import geopandas as gpd
 from PIL import Image
 from numba import njit, prange
 
-from .config import cfg, CACHE_DIR
+from .config import cfg, CACHE_DIR, KLASIFIKASI
 from .status import update as status_update
 
 
@@ -190,114 +190,8 @@ def load_analisis(copy=False):
 # =============================================================================
 # CATEGORIZATION
 # =============================================================================
-
-def categorize_ch(value):
-    fallback_strategy = 'lowest'
-    ranges = {
-        1: (0, 100),
-        2: (101, 300),
-        3: (301, 500),
-        4: (501, float('inf'))
-    }
-
-    if pd.isna(value) or value is None:
-        if fallback_strategy == 'lowest':
-            return 1
-        elif fallback_strategy == 'highest':
-            return 4
-        elif fallback_strategy == 'middle':
-            return 2
-        elif fallback_strategy == 'zero_as_lowest':
-            return 1
-
-    try:
-        if np.isnan(value):
-            if fallback_strategy == 'lowest':
-                return 1
-            elif fallback_strategy == 'highest':
-                return 4
-            elif fallback_strategy == 'middle':
-                return 2
-            elif fallback_strategy == 'zero_as_lowest':
-                return 1
-    except (TypeError, ValueError):
-        pass
-
-    if not isinstance(value, (int, float, np.integer, np.floating)):
-        if fallback_strategy == 'lowest':
-            return 1
-        elif fallback_strategy == 'highest':
-            return 4
-        elif fallback_strategy == 'middle':
-            return 2
-        elif fallback_strategy == 'zero_as_lowest':
-            return 1
-
-    if value < 0:
-        return 1
-
-    for category, (min_val, max_val) in ranges.items():
-        if min_val <= value <= max_val:
-            return category
-
-    return 4
-
-
-def categorize_index(value):
-    fallback_strategy = 'lowest'
-    ranges = {
-        1: (0, 20),
-        2: (21, 50),
-        3: (51, 100),
-        4: (101, 150),
-        5: (151, 200),
-        6: (201, 300),
-        7: (301, 400),
-        8: (401, 500),
-        9: (501, float('inf'))
-    }
-
-    if pd.isna(value) or value is None:
-        if fallback_strategy == 'lowest':
-            return 1
-        elif fallback_strategy == 'highest':
-            return 9
-        elif fallback_strategy == 'middle':
-            return 5
-        elif fallback_strategy == 'zero_as_lowest':
-            return 1
-
-    try:
-        if np.isnan(value):
-            if fallback_strategy == 'lowest':
-                return 1
-            elif fallback_strategy == 'highest':
-                return 9
-            elif fallback_strategy == 'middle':
-                return 5
-            elif fallback_strategy == 'zero_as_lowest':
-                return 1
-    except (TypeError, ValueError):
-        pass
-
-    if not isinstance(value, (int, float, np.integer, np.floating)):
-        if fallback_strategy == 'lowest':
-            return 1
-        elif fallback_strategy == 'highest':
-            return 9
-        elif fallback_strategy == 'middle':
-            return 5
-        elif fallback_strategy == 'zero_as_lowest':
-            return 1
-
-    if value < 0:
-        return 1
-
-    for category, (min_val, max_val) in ranges.items():
-        if min_val <= value <= max_val:
-            return category
-
-    return 9
+# categorize_ch() / categorize_index() dipindah ke unused.py (tidak dipakai).
+# Versi vektor yang aktif ada di bagian ARRANGE TABLE di bawah.
 
 
 # =============================================================================
@@ -361,19 +255,21 @@ def count_points(data, value, levels):
         )
     arr = data[value].values
 
+    # Kategori diambil dari config.KLASIFIKASI. Urutan dispatch sengaja sama
+    # dengan versi lama: tipe dulu, baru peta, lalu fallback ke `levels`.
     if cfg.tipe == 'Curah Hujan':
-        if cfg.skala == 'Bulanan':
-            bins = [0, 100, 300, 500, np.inf]
-            labels = ['Rendah', 'Menengah', 'Tinggi', 'Sangat Tinggi']
-        else:
-            bins = [0, 50, 150, 300, np.inf]
-            labels = ['Rendah', 'Menengah', 'Tinggi', 'Sangat Tinggi']
+        key = ('Curah Hujan', 'Bulanan' if cfg.skala == 'Bulanan' else 'Dasarian')
     elif cfg.tipe == 'Sifat Hujan':
-        bins = [0, 85, 115, np.inf]
-        labels = ['Bawah Normal', 'Normal', 'Atas Normal']
+        key = ('Sifat Hujan', 'Bulanan')   # batas sama untuk kedua skala
     elif cfg.peta == 'Verifikasi':
-        bins = [0, 1, np.inf]
-        labels = ['Tidak Sesuai', 'Sesuai']
+        key = ('Verifikasi', 'Bulanan')    # batas sama untuk kedua skala
+    else:
+        key = None
+
+    if key is not None:
+        entry = KLASIFIKASI[key]
+        bins = list(entry['batas']) + [np.inf]
+        labels = list(entry['nama'])
     else:
         bins = levels + [np.inf]
         labels = [f"{levels[i]}-{levels[i+1]}" for i in range(len(levels)-1)] + [f">={levels[-1]}"]

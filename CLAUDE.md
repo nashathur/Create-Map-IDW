@@ -184,7 +184,7 @@ All input DataFrames must use these normalized column names after loading:
 **Index (9-level, quantitative verification):**
 - 1: 0–20 | 2: 21–50 | 3: 51–100 | 4: 101–150 | 5: 151–200 | 6: 201–300 | 7: 301–400 | 8: 401–500 | 9: >500
 
-**Missing value fallback:** Always returns category `1` (lowest). Do not change this without updating `categorize_ch()` and `categorize_index()` in `utils.py`.
+**Missing value fallback:** Always returns category `1` (lowest). The scalar `categorize_ch()` / `categorize_index()` are archived in `unused.py` (no callers); the live implementations are the vectorized `categorize_ch_vec()` / `categorize_index_vec()` in `utils.py`, used by `arrange_table()`.
 
 ---
 
@@ -363,13 +363,13 @@ pip install -e .
 - Branch for AI/Claude sessions: `claude/<session-id>`
 - Execution log commits follow the format: `log: <MapType> - <Tipe> - <Skala> (YYYY-MM-DD HH:MM)`
 - Feature/fix branches merged to `main` via pull requests
-- The `master` branch is the primary local development branch
+- `main` is the default branch and the one `pip install git+https://...` resolves to
 
 ---
 
 ## Common Gotchas
 
-1. **Numba JIT warm-up:** The first call to `idw_numba()` compiles the function — expect a delay on first execution per session.
+1. **Numba JIT warm-up:** `idw_numba()` is currently NOT on the active code path — `create_map()` interpolates via `scipy.interpolate.RegularGridInterpolator` plus a `distance_transform_edt` nearest-fill. When IDW is restored, expect a compile delay on its first call per session.
 
 2. **`cfg.png_only = True`** disables `cfg.hgt` automatically, skips template overlay, and skips Word generation.
 
@@ -382,3 +382,53 @@ pip install -e .
 6. **Static files** are cached to `/content/static_data`. On a fresh Colab runtime, `download_static_files()` re-downloads everything. If a file is corrupted, `redownload()` in `static.py` handles it.
 
 7. **Data column flexibility:** Prakiraan data may use either `CH` or `VAL` for forecast values. Always check for both columns in order (`CH` first, then `VAL`).
+
+---
+
+## Configuration Constants (config.py)
+
+Everything tunable lives in `Main/config.py`. The dividing rule:
+
+> **`cfg` = what changes between runs. Module-level constants = what changes between deployments.**
+
+`cfg` keeps exactly the fields it always had — nothing was added to it, so the
+notebook interface is unchanged. Values that used to be hardcoded across modules
+now sit in named tables:
+
+| Table | Covers |
+|---|---|
+| `INTERP` | Interpolation method, IDW `power`/`n_neighbors`, smoothing, render mode, detection thresholds |
+| `GRID` | Output cell size (degrees) |
+| `RENDER`, `RENDER_PROB` | figsize, dpi, font sizes, tick/spine widths; Probabilistik overrides |
+| `LEVELS`, `COLORS` | Map colour bands (display) |
+| `KLASIFIKASI`, `KLASIFIKASI_TEKS` | Narration categories: `batas` + `nama` + `deskripsi` in one place |
+| `HTH_KLASIFIKASI`, `HTH_COLORS`, `SCATTER_SIZES` | HTH scatter map |
+| `TEMPLATE` | Panel geometry, paste dimensions, fonts, downscale `resample` filter |
+| `GEMINI`, `NARASI` | Model fallback chains, retry policy, narration thresholds |
+| `WORD`, `DOWNLOAD` | Word font, download retries |
+
+### Two concepts, deliberately separate
+
+`LEVELS` (display bands) is intentionally **finer** than `KLASIFIKASI`
+(narration categories) — a 9-band gradient reads well on a map, a 4-category
+summary reads well in a sentence. Do not merge them.
+
+What *was* wrong is now fixed: the narration thresholds and the wording that
+describes them used to live in two different files (`utils.py` bins vs
+`narasi.py` prompt text), so changing one left the other stale. Both now come
+from `KLASIFIKASI`, and `narasi.CATEGORY_DEFS` is derived from it.
+
+### Interpolation method is not on `cfg`
+
+Deliberate. Unlike `hgt` or `png_only`, the correct method is determined by the
+shape of the data in the file, and an operator generally cannot tell which by
+looking. A notebook toggle invites a wrong or stale setting and a silently
+wrong map. `INTERP['method']` defaults to `'auto'`; the override exists for
+forcing a method or comparing two, and lives in `config.py` where it is reached
+deliberately.
+
+### Note on `COLORS['Curah Hujan']` vs `COLORS['Normal']`
+
+These two palettes are similar but **not identical** (`#340900` vs `#340A00`,
+and five other channels). The difference exists in the original code and is
+preserved intentionally — do not "tidy" them into one entry.
