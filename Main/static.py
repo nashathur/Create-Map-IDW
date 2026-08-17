@@ -13,7 +13,7 @@ import rasterio
 import rasterio.plot
 from thefuzz import process
 
-from .config import cfg, CACHE_DIR, STATIC_FILES
+from .config import cfg, CACHE_DIR, STATIC_FILES, DOWNLOAD
 from .status import update as status_update
 
 
@@ -119,8 +119,12 @@ _idkab_cache = None
 _hgt_cache = None
 
 
-def redownload(filename, max_retries=4):
-    """Delete and re-download a static file with exponential backoff."""
+def redownload(filename, max_retries=None):
+    """Delete and re-download a static file with exponential backoff.
+
+    ``max_retries`` defaults to config.DOWNLOAD['retries'].
+    """
+    max_retries = DOWNLOAD['retries'] if max_retries is None else max_retries
     filepath = os.path.join(CACHE_DIR, filename)
     url = STATIC_FILES.get(filename)
     if url is None:

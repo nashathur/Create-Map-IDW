@@ -6,9 +6,11 @@ Shared plotting helpers + two public entry points: create_map, create_scatter_ma
 
 import io
 import gc
+import os
 from datetime import datetime
 
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -19,7 +21,10 @@ import xarray as xr
 import rasterio.plot
 from scipy.ndimage import gaussian_filter
 
-from .config import cfg
+from .config import (
+    cfg, is_colab, GRID, INTERP, RENDER, RENDER_PROB, COLORS,
+    HTH_KLASIFIKASI, SCATTER_SIZES,
+)
 from .static import font_path, get_basemap, get_hgt_data
 from .utils import load_image_to_memory, count_points
 from .status import update as status_update
@@ -29,14 +34,16 @@ from .status import update as status_update
 # SHARED PLOTTING HELPERS
 # =============================================================================
 
-def _setup_figure(figsize=(20, 20)):
+def _setup_figure(figsize=None):
+    figsize = RENDER['figsize'] if figsize is None else figsize
     fig, ax = plt.subplots(figsize=figsize)
     fig.set_frameon(False)
     ax.set_position([0, 0, 1, 1])
     return fig, ax
 
 
-def _setup_extent(ax, bounds, buffer_frac=0.05):
+def _setup_extent(ax, bounds, buffer_frac=None):
+    buffer_frac = RENDER['buffer_frac'] if buffer_frac is None else buffer_frac
     minx, miny, maxx, maxy = bounds
     x_center = (minx + maxx) / 2
     y_center = (miny + maxy) / 2
@@ -49,7 +56,8 @@ def _setup_extent(ax, bounds, buffer_frac=0.05):
     ax.set_aspect('equal', 'box')
 
 
-def _add_kabupaten_labels(ax, shp_main, fontsize=26, font_style='medium'):
+def _add_kabupaten_labels(ax, shp_main, fontsize=None, font_style='medium'):
+    fontsize = RENDER['kabupaten_fontsize'] if fontsize is None else fontsize
     status_update("Adding labels")
     fontprop = fm.FontProperties(fname=font_path(font_style), stretch=115)
     for _, row in shp_main.iterrows():
@@ -74,7 +82,11 @@ def _calculate_step(range_val):
         return 2.0
 
 
-def _add_lonlat_ticks(ax, label_tick_fontsize=25, tick_width=3, tick_length=10, padding_label=20):
+def _add_lonlat_ticks(ax, label_tick_fontsize=None, tick_width=None, tick_length=None, padding_label=None):
+    label_tick_fontsize = RENDER['label_tick_fontsize'] if label_tick_fontsize is None else label_tick_fontsize
+    tick_width = RENDER['tick_width'] if tick_width is None else tick_width
+    tick_length = RENDER['tick_length'] if tick_length is None else tick_length
+    padding_label = RENDER['padding_label'] if padding_label is None else padding_label
     ax.grid(c='k', alpha=0.1)
     ax.axis('on')
 
@@ -142,7 +154,8 @@ def _add_lonlat_ticks(ax, label_tick_fontsize=25, tick_width=3, tick_length=10, 
         spine.set_linewidth(4)
 
 
-def _save_plot_to_image(fig, dpi=200):
+def _save_plot_to_image(fig, dpi=None):
+    dpi = RENDER['dpi'] if dpi is None else dpi
     status_update("Saving plot to buffer")
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=dpi, transparent=True, bbox_inches='tight')
@@ -222,7 +235,13 @@ def _finalize_map(fig, ax, ctx, levels, province_counts=None, kabupaten_counts=N
 
     if not cfg.png_only:
         if cfg.peta == 'Probabilistik':
-            _add_lonlat_ticks(ax, label_tick_fontsize=45, tick_width=7, tick_length=20, padding_label=30)
+            _add_lonlat_ticks(
+                ax,
+                label_tick_fontsize=RENDER_PROB['label_tick_fontsize'],
+                tick_width=RENDER_PROB['tick_width'],
+                tick_length=RENDER_PROB['tick_length'],
+                padding_label=RENDER_PROB['padding_label'],
+            )
         else:
             _add_lonlat_ticks(ax)
 
@@ -262,7 +281,7 @@ def _get_fine_grid(shp_main, shp_crs):
         return _grid_cache[bounds]
 
     minx, miny, maxx, maxy = bounds
-    output_cell_size = 0.0021648361216
+    output_cell_size = GRID['cell_size']
     ncols = int(np.ceil((maxx - minx) / output_cell_size))
     nrows = int(np.ceil((maxy - miny) / output_cell_size))
     x_grid = np.linspace(minx, minx + ncols * output_cell_size, ncols + 1)
@@ -344,7 +363,7 @@ def create_map(df, value, jenis, color, levels, info):
     fine = _get_fine_grid(ctx['shp_main'], ctx['shp_crs'])
 
     unique_values = np.unique(values_full[~np.isnan(values_full)])
-    is_discrete = len(unique_values) <= 10
+    is_discrete = len(unique_values) <= INTERP['discrete_threshold']
 
     method = 'nearest' if is_discrete else getattr(cfg, 'interpolation_method', 'linear')
     status_update(f"Starting interpolation (method={method})")
@@ -424,14 +443,7 @@ def create_map(df, value, jenis, color, levels, info):
 # HTH TABLE HELPER
 # =============================================================================
 
-_HTH_KLASIFIKASI = {
-    1: 'Sangat Pendek',
-    2: 'Pendek',
-    3: 'Menengah',
-    4: 'Panjang',
-    5: 'Sangat Panjang',
-    6: 'Kekeringan Ekstrim',
-}
+_HTH_KLASIFIKASI = HTH_KLASIFIKASI
 
 
 def _build_hth_rows(joined):
@@ -485,20 +497,13 @@ def create_scatter_map(df, value, jenis, colors, info):
         )
 
     ctx = _prepare_map_context(df, value, jenis, info)
-    scatter_sizes = {
-        0: 300,
-        1: 550,
-        2: 600,
-        3: 600,
-        4: 600,
-        5: 600,
-    }
+    scatter_sizes = SCATTER_SIZES
     # ---- Plot ----
     status_update("Creating scatter plot")
     fig, ax = _setup_figure()
     ax.axis('off')
 
-    ctx['shp_main'].plot(ax=ax, facecolor='#FFFDE7', edgecolor='k', linewidth=1.0, zorder=2)
+    ctx['shp_main'].plot(ax=ax, facecolor=COLORS['basemap_fill'], edgecolor='k', linewidth=1.0, zorder=2)
     ctx['shp_main'].plot(ax=ax, facecolor="none", edgecolor='k', zorder=4)
 
     clipped_gdf = ctx['clipped_gdf']
@@ -528,8 +533,6 @@ def create_scatter_map(df, value, jenis, colors, info):
 
 def _export_csv(plot_data):
     """Export station-level data from plot_data as CSV and auto-download in Colab."""
-    import os
-    import pandas as pd
 
     joined_gdf = plot_data.get('joined_gdf')
     if joined_gdf is None or len(joined_gdf) == 0:
@@ -555,7 +558,6 @@ def _export_csv(plot_data):
     export_df = joined_gdf[[c for c in keep_cols if c in joined_gdf.columns]].copy()
     export_df = export_df.reset_index(drop=True)
 
-    from .config import is_colab
 
     png_name = plot_data.get('file_name', 'export')
     csv_name = os.path.splitext(png_name)[0] + '.csv'
