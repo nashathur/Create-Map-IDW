@@ -992,3 +992,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-08-27T03:57:42.305335,Prakiraan,SPI,Bulanan,Papua Tengah,2026,9,3,2026,8,3,False,False,peta_20260827_035741_SPI_2026.09_ver_2026.08.png,11.31
 2026-08-27T04:01:13.347815,Prakiraan,SPI,Bulanan,Papua Tengah,2026,9,3,2026,8,3,False,False,peta_20260827_040112_SPI_2026.09_ver_2026.08.png,11.79
 2026-08-27T04:18:44.311249,Analisis,Curah Hujan,Dasarian,"Papua Barat, Papua Barat Daya",2026,2,1,2026,8,3,False,False,peta_20260827_041843_ACHdas_2026.02.png,34.35
+2026-08-27T04:22:12.810162,Analisis,Curah Hujan,Dasarian,"Papua Barat, Papua Barat Daya",2026,2,2,2026,8,3,False,False,peta_20260827_042212_ACHdas_2026.02.png,32.79
