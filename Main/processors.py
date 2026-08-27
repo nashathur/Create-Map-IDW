@@ -13,13 +13,12 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import rasterio.plot
 
-from .config import cfg, CACHE_DIR
+from .config import cfg, CACHE_DIR, LEVELS, COLORS, HTH_COLORS, RENDER
 from .static import get_basemap, get_hgt_data, redownload
 from .utils import (
     load_prakiraan, load_analisis, load_image_to_memory,
     arrange_table, calculate_metrics
 )
-from .map_creation import create_map
 from .status import update as status_update
 from .map_creation import create_map, create_scatter_map
 
@@ -87,13 +86,9 @@ def load_hth():
 def get_pch():
     status_update("Processing PCH")
     df_pch = load_prakiraan()
-    if cfg.skala == 'Bulanan':
-        levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
-        color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
-    else:
-        levels = [0, 10, 20, 50, 75, 100, 150, 200, 300, 1000]
-        color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
-    
+    levels = LEVELS[('Curah Hujan', 'Bulanan' if cfg.skala == 'Bulanan' else 'Dasarian')]
+    color = COLORS['Curah Hujan']
+
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
@@ -131,9 +126,9 @@ def get_pch():
 
 def get_psh():
     status_update("Processing PSH")
-    levels = [0, 30, 50, 85, 115, 150, 200, 500]
+    levels = LEVELS['Sifat Hujan']
     df_psh = load_prakiraan()
-    color = ['#4a1600', '#a85b00', '#f3c40f', '#ffff00', '#8bb700', '#238129', '#00460e']
+    color = COLORS['Sifat Hujan']
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
@@ -174,12 +169,8 @@ def get_psh():
 def get_ach():
     status_update("Processing ACH")
     df_ach = load_analisis()
-    if cfg.skala == 'Bulanan':
-        levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
-        color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
-    else:
-        levels = [0, 10, 20, 50, 75, 100, 150, 200, 300, 1000]
-        color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
+    levels = LEVELS[('Curah Hujan', 'Bulanan' if cfg.skala == 'Bulanan' else 'Dasarian')]
+    color = COLORS['Curah Hujan']
 
     if 'CH' not in df_ach.columns:
         raise ValueError(
@@ -205,8 +196,8 @@ def get_ash():
     status_update("Processing ASH")
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     df_ash = load_analisis()
-    levels = [0, 30, 50, 85, 115, 150, 200, 500]
-    color = ['#4a1600', '#a85b00', '#f3c40f', '#ffff00', '#8bb700', '#238129', '#00460e']
+    levels = LEVELS['Sifat Hujan']
+    color = COLORS['Sifat Hujan']
 
     if 'SH%' not in df_ash.columns:
         raise ValueError(
@@ -250,14 +241,8 @@ def get_spi():
 
     # Official BMKG SPI 7-class classification (McKee et al., 1993 breakpoints).
     # Sangat Kering (dry) -> Normal -> Sangat Basah (wet).
-    levels = [-10, -2, -1.5, -1, 1, 1.5, 2, 10]
-    color = ['#730000',  # Sangat Kering  (<= -2)
-             '#FF0000',  # Kering         (-2 .. -1.5)
-             '#E69800',  # Agak Kering    (-1.5 .. -1)
-             '#FFFFBE',  # Normal         (-1 .. 1)
-             '#7FCC00',  # Agak Basah     (1 .. 1.5)
-             '#267300',  # Basah          (1.5 .. 2)
-             '#00B0F0']  # Sangat Basah   (>= 2)
+    levels = LEVELS['SPI']
+    color = COLORS['SPI']
 
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
@@ -286,8 +271,8 @@ def get_pch_prob():
             f"Untuk peta Probabilistik, file harus memiliki kolom: {required_prob_cols}."
         )
     
-    levels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-    color = ['#ffffff', '#0000fe', '#007fff', '#01ffff', '#7eff80', '#fffe01', '#ffc800', '#ff7f00', '#ff3f01', '#b10101']
+    levels = LEVELS['Probabilistik']
+    color = COLORS['Probabilistik']
 
     if cfg.skala == 'Bulanan':
         jenis = 'PCH_Prob'
@@ -349,15 +334,7 @@ def get_hth():
     status_update("Processing HTH")
     df_hth = load_hth()
 
-    hth_colors = {
-        0: '#2E8B57',
-        1: '#90EE90',
-        2: '#FFD700',
-        3: '#FF8C00',
-        4: '#8B4513',
-        5: '#FFB6C1',
-        6: '#FF0000',
-    }
+    hth_colors = HTH_COLORS
 
     info = (
         cfg.year, cfg.month,
@@ -412,8 +389,8 @@ def get_verif():
     contingency = pd.crosstab(clipped_merged_df[col_forecast], clipped_merged_df[col_analysis], dropna=False, margins=True)
     contingency = contingency.reindex(index=all_categories + ['All'], columns=all_categories + ['All'], fill_value=0)
 
-    color = ['white', 'dodgerblue']
-    levels = [0, 1]
+    color = COLORS['Verifikasi']
+    levels = LEVELS['Verifikasi']
 
     status_update("Calculating metrics")
     accuracy, hss, pss = calculate_metrics(clipped_merged_df[col_forecast], clipped_merged_df[col_analysis], contingency)
@@ -438,9 +415,9 @@ def get_verif():
     top_space = middle_space + space
 
     status_update("Adding metrics to plot")
-    ax.text(x_pos, top_space, f"Akurasi (PC): {((accuracy)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='bold', zorder=11)
-    ax.text(x_pos, middle_space, f"HSS: {((hss)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='normal', zorder=11)
-    ax.text(x_pos, bottom_space, f"PSS: {((pss)*100):.0f}%", fontsize=32, ha='left', va='center', fontweight='normal', zorder=11)
+    ax.text(x_pos, top_space, f"Akurasi (PC): {((accuracy)*100):.0f}%", fontsize=RENDER['metrics_fontsize'], ha='left', va='center', fontweight='bold', zorder=11)
+    ax.text(x_pos, middle_space, f"HSS: {((hss)*100):.0f}%", fontsize=RENDER['metrics_fontsize'], ha='left', va='center', fontweight='normal', zorder=11)
+    ax.text(x_pos, bottom_space, f"PSS: {((pss)*100):.0f}%", fontsize=RENDER['metrics_fontsize'], ha='left', va='center', fontweight='normal', zorder=11)
 
     rect_x = x_pos - (space * 0.5)
     rect_y = bottom_space - (space * 0.75)
@@ -477,8 +454,8 @@ def get_normal():
         df_normal = pd.read_excel(os.path.join(CACHE_DIR, normal_filename))
     df_normal[['LON', 'LAT']] = df_normal[['LON', 'LAT']].round(2)
     df_normal = df_normal.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore')
-    levels = [0, 20, 50, 100, 150, 200, 300, 400, 500, 1000]
-    color = ['#340A00', '#8E2800', '#DC6200', '#EFA800', '#EBE100', '#E0FD68', '#8AD58B', '#369135', '#00460C']
+    levels = LEVELS['Normal']
+    color = COLORS['Normal']
     value = cfg.month
     jenis = 'NORMAL'
     status_update("Creating normal map")
@@ -519,8 +496,8 @@ def bias_map():
 
     status_update("Calculating bias")
     merged_df['bias'] = merged_df[forecast_col] - merged_df[actual_col]
-    levels = [-1000, -500, -400, -300, -200, -100, -50, -25, 0, 25, 50, 100, 200, 300, 400, 500, 1000]
-    color = ['#af3547', '#c74651', '#dc5b5e', '#ea7972', '#f19580', '#f5ae8a', '#f7c69a', '#ffffff', '#ffffff', '#bbe3f0', '#95d8ee', '#62cdef', '#34c0ec', '#0cafe4', '#0094d2', '#0074bc']
+    levels = LEVELS['Bias']
+    color = COLORS['Bias']
     value = 'bias'
     jenis = 'BIAS'
     status_update("Creating bias map")
