@@ -27,6 +27,10 @@ dependencies = [
     "pyarrow>=10.0.0",
     "docxtpl>=0.16.0",
     "python-docx>=0.8.11",
+    # Dipakai logger.py untuk menulis execution_log.csv lewat GitHub API.
+    # Sebelumnya tidak dideklarasikan -- lolos di Colab karena sudah terpasang,
+    # tapi gagal pada instalasi bersih di luar Colab.
+    "requests>=2.25.0",
 ]
 
 [project.optional-dependencies]

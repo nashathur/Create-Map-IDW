@@ -11,10 +11,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
 
-from .config import cfg, CACHE_DIR
+from .config import cfg, CACHE_DIR, TEMPLATE
 from .static import font_path, redownload
 from .utils import load_image_to_memory, number_to_bulan, dasarian_romawi, dasarian_to_date
 from .status import update as status_update
+
+# Filter downscale PIL, di-resolve sekali dari config.
+_RESAMPLE = getattr(Image.Resampling, TEMPLATE['resample'])
 
 
 def image_template():
@@ -50,7 +53,7 @@ def image_template():
     except KeyError:
         raise ValueError("Invalid combination of peta, skala, and tipe")
 
-def _get_scaled_font(text, font_path_str, max_width, min_size=24, max_size=40):
+def _get_scaled_font(text, font_path_str, max_width, min_size=24, max_size=TEMPLATE['fonts']['line3']):
     """Continuously scale font size to fit text within max_width."""
     size = max_size
     font = ImageFont.truetype(font_path_str, size=size)
@@ -88,14 +91,14 @@ def _draw_hth_text(draw, plot_data, text_x):
     ]
     update_line = f"Update: {dasarian_to_date(dasarian_ver)} {number_to_bulan(month_ver)} {year_ver}"
 
-    PANEL_WIDTH = 996
-    TEXT_PADDING = 40
+    PANEL_WIDTH = TEMPLATE['panel_width']
+    TEXT_PADDING = TEMPLATE['text_padding']
 
-    font_line1 = ImageFont.truetype(font_path('bold'), size=46)
-    font_line2 = ImageFont.truetype(font_path('bold'), size=46)
-    font_line3 = ImageFont.truetype(font_path('bold'), size=40)
-    font_line4 = _get_scaled_font(title_lines[3], font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=36)
-    font_update = ImageFont.truetype(font_path('regular'), size=36)
+    font_line1 = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['subtitle'])
+    font_line2 = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['subtitle'])
+    font_line3 = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['line3'])
+    font_line4 = _get_scaled_font(title_lines[3], font_path('bold'), max_width=PANEL_WIDTH - TEXT_PADDING, min_size=24, max_size=TEMPLATE['fonts']['update'])
+    font_update = ImageFont.truetype(font_path('regular'), size=TEMPLATE['fonts']['update'])
 
     fonts_title = [font_line1, font_line2, font_line3, font_line4]
 
@@ -138,16 +141,16 @@ def _draw_spi_text(draw, plot_data, text_x, text_y, spacing):
     line_periode = f"BULAN {number_to_bulan(month)} {year}".upper()
     subtitle_wilayah = nama_wilayah.upper()
 
-    PANEL_WIDTH = 996
-    TEXT_PADDING = 40
+    PANEL_WIDTH = TEMPLATE['panel_width']
+    TEXT_PADDING = TEMPLATE['text_padding']
     max_width = PANEL_WIDTH - TEXT_PADDING
 
-    font_title = ImageFont.truetype(font_path('bold'), size=52)
-    font_spi_en = _get_scaled_font(line_spi_en, font_path('bold'), max_width=max_width, min_size=24, max_size=44)
-    font_spi_id = _get_scaled_font(line_spi_id, font_path('bold'), max_width=max_width, min_size=24, max_size=44)
-    font_skala = ImageFont.truetype(font_path('bold'), size=46)
-    font_periode = ImageFont.truetype(font_path('bold'), size=46)
-    font_wilayah = _get_scaled_font(subtitle_wilayah, font_path('bold'), max_width=max_width, min_size=24, max_size=40)
+    font_title = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['title'])
+    font_spi_en = _get_scaled_font(line_spi_en, font_path('bold'), max_width=max_width, min_size=TEMPLATE['fonts']['scaled_min'], max_size=TEMPLATE['fonts']['scaled_max_spi'])
+    font_spi_id = _get_scaled_font(line_spi_id, font_path('bold'), max_width=max_width, min_size=TEMPLATE['fonts']['scaled_min'], max_size=TEMPLATE['fonts']['scaled_max_spi'])
+    font_skala = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['subtitle'])
+    font_periode = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['subtitle'])
+    font_wilayah = _get_scaled_font(subtitle_wilayah, font_path('bold'), max_width=max_width, min_size=24, max_size=TEMPLATE['fonts']['line3'])
 
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -195,16 +198,16 @@ def _draw_default_text(draw, plot_data, text_x, text_y, spacing):
     else:
         title = f"PETA {peta} {tipe}"
 
-    font_title = ImageFont.truetype(font_path('bold'), size=52)
-    font_subtitle = ImageFont.truetype(font_path('bold'), size=46)
-    font_versi = ImageFont.truetype(font_path('regular'), size=32)
+    font_title = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['title'])
+    font_subtitle = ImageFont.truetype(font_path('bold'), size=TEMPLATE['fonts']['subtitle'])
+    font_versi = ImageFont.truetype(font_path('regular'), size=TEMPLATE['fonts']['versi'])
     
-    PANEL_WIDTH = 996
-    TEXT_PADDING = 40  # 40px each side
+    PANEL_WIDTH = TEMPLATE['panel_width']
+    TEXT_PADDING = TEMPLATE['text_padding']  # 40px each side
     font_wilayah = _get_scaled_font(
         subtitle_wilayah, font_path('bold'),
         max_width=PANEL_WIDTH - TEXT_PADDING,
-        min_size=24, max_size=40)
+        min_size=24, max_size=TEMPLATE['fonts']['line3'])
 
     def draw_centered(y, text, font, fill='black'):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -275,7 +278,7 @@ def overlay_image(plot_data):
         status_update("Overlaying Probabilistik images")
         for result, location in zip(results, locations):
             img = result['image']
-            img = img.resize(dimension)
+            img = img.resize(dimension, _RESAMPLE)
             new_image.paste(img, location, img)
 
         for result in results:
@@ -289,15 +292,15 @@ def overlay_image(plot_data):
 
     else:
         # Same paste dimensions for all non-Probabilistik maps (including HTH)
-        dimension = (2379, 2392)
-        location = (40, 42)
+        dimension = TEMPLATE['paste_dimension']
+        location = TEMPLATE['paste_location']
         status_update("Processing plot image")
 
         if 'fig' in plot_data and plot_data['fig'] is not None:
             plt.close(plot_data['fig'])
 
         result_image = plot_data['image'].convert("RGBA")
-        result_image = result_image.resize(dimension)
+        result_image = result_image.resize(dimension, _RESAMPLE)
         plot_data['image'].close()
         status_update("Plot image processed")
         new_image = background_template.copy()
