@@ -6,7 +6,7 @@ Word document generation from map data using docxtpl templates.
 import os
 import io
 
-from .config import cfg, CACHE_DIR
+from .config import cfg, CACHE_DIR, WORD
 from .utils import number_to_bulan, dasarian_romawi
 from .static import redownload
 from .status import update as status_update
@@ -29,8 +29,8 @@ def _build_table_subdoc(doc, table_data):
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
-    FONT_NAME = 'Times New Roman'
-    FONT_SIZE = Pt(12)
+    FONT_NAME = WORD['font_name']
+    FONT_SIZE = Pt(WORD['font_size_pt'])
 
     sd = doc.new_subdoc()
 

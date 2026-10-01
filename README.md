@@ -15,7 +15,7 @@ Create-Map-IDW is a Python package designed to run in **Google Colab**. It produ
 - **Flexible regions** — Province or district-level maps with fuzzy name matching
 - **AI captions** — Auto-generated Indonesian-language narratives via Google Gemini API
 - **Word reports** — `.docx` output with official letterhead, maps, and AI analysis
-- **CSV export** — Export clipped interpolation data
+- **CSV export** — Export the station points used for interpolation
 - **Verification metrics** — Accuracy, HSS (Heidke Skill Score), and PSS (Peirce Skill Score)
 - **Execution logging** — Automatic logging of every run to `execution_log.csv`
 
@@ -95,7 +95,7 @@ for tipe in cfg.tipe_peta:
 | `cfg.hgt` | `bool` | `True` | Enable ocean depth / elevation layer |
 | `cfg.png_only` | `bool` | `False` | Output raw PNG only — disables template overlay, HGT layer, and Word generation |
 | `cfg.create_word` | `bool` | `False` | Generate a `.docx` report with maps and AI-generated analysis |
-| `cfg.export_csv` | `bool` | `False` | Export clipped interpolation data to CSV |
+| `cfg.export_csv` | `bool` | `False` | Export the station points used for interpolation to CSV |
 | `cfg.verif_mode` | `str` | `kuantitatif` | Verification method: `kuantitatif` (9 rainfall classes) or `kualitatif` (4 classes) |
 
 ## Supported Map Types
