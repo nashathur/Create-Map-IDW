@@ -13,7 +13,7 @@ import rasterio
 import rasterio.plot
 from thefuzz import process
 
-from .config import cfg, CACHE_DIR, STATIC_FILES
+from .config import cfg, CACHE_DIR, STATIC_FILES, DOWNLOAD
 from .status import update as status_update
 
 
@@ -119,8 +119,12 @@ _idkab_cache = None
 _hgt_cache = None
 
 
-def redownload(filename, max_retries=4):
-    """Delete and re-download a static file with exponential backoff."""
+def redownload(filename, max_retries=None):
+    """Delete and re-download a static file with exponential backoff.
+
+    ``max_retries`` defaults to config.DOWNLOAD['retries'].
+    """
+    max_retries = DOWNLOAD['retries'] if max_retries is None else max_retries
     filepath = os.path.join(CACHE_DIR, filename)
     url = STATIC_FILES.get(filename)
     if url is None:
@@ -275,6 +279,28 @@ def clear_basemap_cache():
     global _basemap_cache
     _basemap_cache = {}
     status_update("Basemap cache cleared")
+
+
+def clear_static_cache():
+    """Drop the cached idkab shapefile and HGT raster.
+
+    Both are wilayah-independent (whole-Indonesia shapefile, whole HGT raster),
+    so unlike _basemap_cache they are correct to hold as singletons -- there is
+    no staleness issue. This exists to reclaim memory in a long Colab session,
+    and to recover if a static file is replaced or was corrupt on first load.
+    """
+    global _idkab_cache, _hgt_cache
+    if _hgt_cache is not None:
+        data = _hgt_cache.get('data') if isinstance(_hgt_cache, dict) else None
+        close = getattr(data, 'close', None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+    _idkab_cache = None
+    _hgt_cache = None
+    status_update("Static cache cleared")
 
 
 def get_hgt_data():
