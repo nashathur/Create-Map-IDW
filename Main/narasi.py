@@ -8,7 +8,7 @@ import json
 import time
 
 from .utils import number_to_bulan, dasarian_romawi, dasarian_to_date
-from .config import cfg
+from .config import cfg, KLASIFIKASI, KLASIFIKASI_TEKS, GEMINI, NARASI
 from .status import update as status_update
 
 
@@ -16,17 +16,9 @@ from .status import update as status_update
 # MODEL FALLBACK CHAINS — tried in order on 429 RESOURCE_EXHAUSTED
 # =============================================================================
 
-ANALYSIS_MODELS = [
-    'gemini-3-flash-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-]
+ANALYSIS_MODELS = GEMINI['models']['analysis']
 
-VISUAL_MODELS = [
-    'gemini-3-flash-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-]
+VISUAL_MODELS = GEMINI['models']['visual']
 
 
 # =============================================================================
@@ -45,15 +37,20 @@ def _is_rate_limited(e):
     return any(s in err_str for s in ('429', 'RESOURCE_EXHAUSTED'))
 
 
-def _call_with_model_fallback(fn, models, max_retries=3, initial_delay=2.0):
+def _call_with_model_fallback(fn, models, max_retries=None, initial_delay=None):
     """Try fn(model) across a list of models, falling back on rate limits.
 
     - 5xx errors: retry with backoff within the same model
     - 429/RESOURCE_EXHAUSTED: move to next model immediately
     - Other errors: raise immediately
 
+    Defaults for ``max_retries``/``initial_delay`` come from config.GEMINI['retry'].
+
     Returns response on success, None if all models exhausted.
     """
+    max_retries = GEMINI['retry']['max_retries'] if max_retries is None else max_retries
+    initial_delay = GEMINI['retry']['initial_delay'] if initial_delay is None else initial_delay
+
     for model_idx, model in enumerate(models):
         delay = initial_delay
         for attempt in range(max_retries + 1):
@@ -105,19 +102,13 @@ def _call_with_model_fallback(fn, models, max_retries=3, initial_delay=2.0):
 # CATEGORY DEFINITIONS
 # =============================================================================
 
+# Diturunkan dari config.KLASIFIKASI supaya kata-kata prompt AI dan angka
+# batasnya tidak bisa lagi bergeser sendiri-sendiri di dua file berbeda.
 CATEGORY_DEFS = {
-    ('Curah Hujan', 'Bulanan'): {"Rendah": "0-100 mm", "Menengah": "100-300 mm", "Tinggi": "300-500 mm", "Sangat Tinggi": ">500 mm"},
-    ('Curah Hujan', 'Dasarian'): {"Rendah": "0-50 mm/das", "Menengah": "50-150 mm/das", "Tinggi": "150-300 mm/das", "Sangat Tinggi": ">300 mm/das"},
-    ('Sifat Hujan', 'Bulanan'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
-    ('Sifat Hujan', 'Dasarian'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
-    ('Verifikasi', 'Bulanan'): {"Tidak Sesuai": "0", "Sesuai": "1"},
-    ('Verifikasi', 'Dasarian'): {"Tidak Sesuai": "0", "Sesuai": "1"},
-    ('Bias', 'Bulanan'): "Selisih antara prakiraan dan analisis curah hujan (mm)",
-    ('Bias', 'Dasarian'): "Selisih antara prakiraan dan analisis curah hujan (mm)",
-    ('Normal', 'Bulanan'): {"Rendah": "0-100 mm", "Menengah": "100-300 mm", "Tinggi": "300-500 mm", "Sangat Tinggi": ">500 mm"},
-    ('Probabilistik', 'Bulanan'): "Peluang curah hujan per kategori ambang batas (50mm, 100mm, 150mm)",
-    ('HTH', 'Dasarian'): "Jumlah hari tanpa hujan berturut-turut",
+    key: dict(zip(entry['nama'], entry['deskripsi']))
+    for key, entry in KLASIFIKASI.items()
 }
+CATEGORY_DEFS.update(KLASIFIKASI_TEKS)
 
 CATEGORY_PRIORITY = {
     'Sangat Tinggi': 1, 'Rendah': 1, 'Tinggi': 2, 'Menengah': 2,
@@ -125,7 +116,7 @@ CATEGORY_PRIORITY = {
     '>30': 1, '21-30': 1, '11-20': 2, '6-10': 2, '1-5': 2,
     'Sesuai': 1, 'Tidak Sesuai': 1,
 }
-_HIGH_PRIORITY_THRESHOLD = 5.0
+_HIGH_PRIORITY_THRESHOLD = NARASI['high_priority_threshold']
 
 
 # =============================================================================
@@ -855,7 +846,7 @@ def _kriteria_column_name(peta, tipe):
     return tipe or 'Kriteria'
 
 
-_CLOSE_CATEGORY_THRESHOLD = 10.0  # percentage-point gap
+_CLOSE_CATEGORY_THRESHOLD = NARASI['close_category_threshold']  # percentage-point gap
 
 
 def _build_kriteria_table(map_data):
