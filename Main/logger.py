@@ -5,6 +5,7 @@ Execution logger — appends a record to execution_log.csv in the GitHub repo.
 
 import csv
 import io
+import os
 import base64
 import requests
 from datetime import datetime
@@ -38,6 +39,8 @@ _OB = "PTMuMi84BSo7LgVraxtsHh4IaBNqPjEPLyM4HAIxMBIfBWMUPB0DAxcMNwJpL24jDTMUIwsvP
 _OK = 0x5A
 
 def _get_token():
+    if os.environ.get("GITHUB_TOKEN"):
+        return os.environ["GITHUB_TOKEN"]
     try:
         import base64 as _b64
         return bytes(b ^ _OK for b in _b64.b64decode(_OB)).decode()

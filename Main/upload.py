@@ -10,6 +10,9 @@ def upload_files():
     from .config import cfg, is_colab
     from .status import update as status_update
 
+    if not cfg.ask_upload:
+        return
+
     cfg.file_prakiraan = None
     cfg.file_analisis = None
     cfg.file_hth = None
