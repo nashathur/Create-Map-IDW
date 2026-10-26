@@ -1,0 +1,2 @@
+create-map-idw @ git+https://github.com/nashathur/Create-Map-IDW.git@v1.1
+google-genai

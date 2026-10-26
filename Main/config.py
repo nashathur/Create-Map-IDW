@@ -58,6 +58,12 @@ class cfg:
     create_word = False
     verif_mode = 'kuantitatif'    #kuantitatif or kualitatif
 
+    # Opt-in for hosted use (e.g. the Gradio Space); defaults keep Colab behaviour
+    ask_upload = True             # False: use cfg.file_* as set, no upload prompt
+    output_dir = None             # Word/CSV output folder; None = /content or cwd
+    kolom = None                  # value column of the main file; None = auto
+    kolom_pembanding = None       # analisis column for Verifikasi/Bias; None = auto
+
     # Gemini API key (decoded at import time from obfuscated blob)
     gemini_api_key = None
 
@@ -65,7 +71,7 @@ def _decode(blob, key):
     import base64
     return bytes(b ^ key for b in base64.b64decode(blob)).decode()
 
-cfg.gemini_api_key = _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
+cfg.gemini_api_key = os.environ.get('GEMINI_API_KEY') or _decode("GxMgOwkjG2s+DRQcMwg8FmMsbws4GxkdYggoNjAqLGoWFj1uY2of", 0x5A)
 
 GITHUB_BASE = "https://github.com/nashathur/Create-Map-IDW/releases/download/v1.0"
 

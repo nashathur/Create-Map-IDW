@@ -21,7 +21,7 @@ from scipy.ndimage import gaussian_filter
 
 from .config import cfg
 from .static import font_path, get_basemap, get_hgt_data
-from .utils import load_image_to_memory, count_points
+from .utils import load_image_to_memory, count_points, CATEGORY_SCHEMES
 from .status import update as status_update
 
 
@@ -425,12 +425,8 @@ def create_map(df, value, jenis, color, levels, info):
 # =============================================================================
 
 _HTH_KLASIFIKASI = {
-    1: 'Sangat Pendek',
-    2: 'Pendek',
-    3: 'Menengah',
-    4: 'Panjang',
-    5: 'Sangat Panjang',
-    6: 'Kekeringan Ekstrim',
+    i: f'{label} ({rng})'
+    for i, (label, rng, _) in enumerate(CATEGORY_SCHEMES['HTH'][1]) if i > 0
 }
 
 
@@ -469,7 +465,8 @@ def _build_hth_rows(joined):
         r.append(str(row.get('KLASIFIKASI', '')))
         rows.append(r)
 
-    return {'columns': columns, 'rows': rows}
+    # Provinsi and Kabupaten repeat down the sorted rows; word.py merges them.
+    return {'columns': columns, 'rows': rows, 'merge_cols': 2}
 
 
 # =============================================================================
@@ -511,15 +508,22 @@ def create_scatter_map(df, value, jenis, colors, info):
                 edgecolors='black', linewidths=0.5, zorder=5
             )
 
-    joined = gpd.sjoin(clipped_gdf, ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
+    # Region columns already in the input (e.g. a re-uploaded CSV export) would
+    # get _left/_right suffixes; the basemap's are the ones to group by.
+    joined = gpd.sjoin(clipped_gdf.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore'),
+                       ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
+
+    levels = list(colors.keys())
+    province_counts = {p: count_points(g, value, levels) for p, g in joined.groupby('PROVINSI')}
+    kabupaten_counts = {k: count_points(g, value, levels) for k, g in joined.groupby('KABUPATEN')}
 
     # Pre-compute HTH table data if Word output is requested
     hth_table = None
     if cfg.create_word and cfg.peta == 'HTH':
         hth_table = _build_hth_rows(joined)
 
-    return _finalize_map(fig, ax, ctx, levels=list(colors.keys()), joined_gdf=joined,
-                         hth_table_data=hth_table)
+    return _finalize_map(fig, ax, ctx, levels, province_counts, kabupaten_counts,
+                         joined_gdf=joined, hth_table_data=hth_table)
 
 
 # =============================================================================
@@ -555,11 +559,11 @@ def _export_csv(plot_data):
     export_df = joined_gdf[[c for c in keep_cols if c in joined_gdf.columns]].copy()
     export_df = export_df.reset_index(drop=True)
 
-    from .config import is_colab
+    from .config import cfg, is_colab
 
     png_name = plot_data.get('file_name', 'export')
     csv_name = os.path.splitext(png_name)[0] + '.csv'
-    output_dir = '/content' if is_colab() else os.getcwd()
+    output_dir = cfg.output_dir or ('/content' if is_colab() else os.getcwd())
     csv_path = os.path.join(output_dir, csv_name)
 
     export_df.to_csv(csv_path, index=False)

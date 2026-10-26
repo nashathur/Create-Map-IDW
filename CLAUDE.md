@@ -340,7 +340,9 @@ dev = ["pytest >= 7.0.0"]
 
 ## Testing
 
-There is currently **no formal test suite**. `pytest` is declared as a dev dependency but no test files or test directories exist. The package is validated through the `execution_log.csv` history and manual notebook runs.
+`tests/test_narasi_word.py` covers `count_points`, the narration/table grouping, Gemini output checks (stubbed) and Word table merging: `python -m pytest tests`. Map rendering is still validated through the `execution_log.csv` history and manual notebook runs.
+
+Category bins, labels and range text live in one place, `utils.CATEGORY_SCHEMES`; `count_points`, `narasi.py` and the Word table all read it.
 
 When adding tests, place them in a `tests/` directory. Use `pytest` as the test runner. Test data should mock `cfg` settings and stub out Gemini/GitHub API calls.
 

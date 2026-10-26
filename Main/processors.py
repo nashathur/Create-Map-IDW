@@ -17,7 +17,7 @@ from .config import cfg, CACHE_DIR
 from .static import get_basemap, get_hgt_data, redownload
 from .utils import (
     load_prakiraan, load_analisis, load_image_to_memory,
-    arrange_table, calculate_metrics
+    arrange_table, calculate_metrics, pick_column, standard_column
 )
 from .map_creation import create_map
 from .status import update as status_update
@@ -42,7 +42,7 @@ def load_hth():
     status_update(f"Loading HTH file: {filepath}")
     ext = os.path.splitext(filepath)[1].lower()
     if ext == '.csv':
-        df = pd.read_csv(filepath)
+        df = pd.read_csv(filepath, sep=None, engine='python')   # HTH exports often use ';'
     elif ext in ('.xlsx', '.xls'):
         df = pd.read_excel(filepath)
     else:
@@ -97,11 +97,8 @@ def get_pch():
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
-        if 'VAL' in df_pch.columns:
-            value = 'VAL'
-        elif 'CH' in df_pch.columns:
-            value = 'CH'
-        else:
+        value = pick_column(df_pch, cfg.kolom, 'VAL', 'CH')
+        if value is None:
             raise ValueError(
                 f"Kolom 'VAL' atau 'CH' tidak ditemukan pada file prakiraan. "
                 f"Kolom yang tersedia: {list(df_pch.columns)}. "
@@ -112,11 +109,8 @@ def get_pch():
         plot_data = create_map(df_pch, value, jenis, color, levels, info)
         return plot_data
     else:
-        if 'CH' in df_pch.columns:
-            value = 'CH'
-        elif 'VAL' in df_pch.columns:
-            value = 'VAL'
-        else:
+        value = pick_column(df_pch, cfg.kolom, 'CH', 'VAL')
+        if value is None:
             raise ValueError(
                 f"Kolom 'CH' atau 'VAL' tidak ditemukan pada file prakiraan. "
                 f"Kolom yang tersedia: {list(df_pch.columns)}. "
@@ -137,11 +131,8 @@ def get_psh():
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
     
     if cfg.skala == 'Bulanan':
-        if 'VAL' in df_psh.columns:
-            value = 'VAL'
-        elif 'SH' in df_psh.columns:
-            value = 'SH'
-        else:
+        value = pick_column(df_psh, cfg.kolom, 'VAL', 'SH')
+        if value is None:
             raise ValueError(
                 f"Kolom 'VAL' atau 'SH' tidak ditemukan pada file prakiraan. "
                 f"Kolom yang tersedia: {list(df_psh.columns)}. "
@@ -149,11 +140,8 @@ def get_psh():
             )
         jenis = 'PSH'
     else:
-        if 'SH' in df_psh.columns:
-            value = 'SH'
-        elif 'VAL' in df_psh.columns:
-            value = 'VAL'
-        else:
+        value = pick_column(df_psh, cfg.kolom, 'SH', 'VAL')
+        if value is None:
             raise ValueError(
                 f"Kolom 'SH' atau 'VAL' tidak ditemukan pada file prakiraan. "
                 f"Kolom yang tersedia: {list(df_psh.columns)}. "
@@ -181,13 +169,13 @@ def get_ach():
         levels = [0, 10, 20, 50, 75, 100, 150, 200, 300, 1000]
         color = ['#340900', '#8E2800', '#DC6200', '#EFA800', '#eae100', '#e0fe7c', '#8bd48b', '#369134', '#00450c']
 
-    if 'CH' not in df_ach.columns:
+    value = pick_column(df_ach, cfg.kolom, 'CH')
+    if value is None:
         raise ValueError(
             f"Kolom 'CH' tidak ditemukan pada file analisis. "
             f"Kolom yang tersedia: {list(df_ach.columns)}. "
             f"Untuk peta Analisis Curah Hujan, file harus memiliki kolom CH (Curah Hujan)."
         )
-    value = 'CH'
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
     if cfg.skala == 'Bulanan':
@@ -208,13 +196,13 @@ def get_ash():
     levels = [0, 30, 50, 85, 115, 150, 200, 500]
     color = ['#4a1600', '#a85b00', '#f3c40f', '#ffff00', '#8bb700', '#238129', '#00460e']
 
-    if 'SH%' not in df_ash.columns:
+    value = pick_column(df_ash, cfg.kolom, 'SH%')
+    if value is None:
         raise ValueError(
             f"Kolom 'SH%' tidak ditemukan pada file analisis. "
             f"Kolom yang tersedia: {list(df_ash.columns)}. "
             f"Untuk peta Analisis Sifat Hujan, file harus memiliki kolom SH% (Sifat Hujan persen)."
         )
-    value = 'SH%'
     
     if cfg.skala == 'Bulanan':
         jenis = 'ASH'
@@ -240,13 +228,13 @@ def get_spi():
     else:
         df_spi = load_prakiraan()
 
-    if 'SPI' not in df_spi.columns:
+    value = pick_column(df_spi, cfg.kolom, 'SPI')
+    if value is None:
         raise ValueError(
             f"Kolom 'SPI' tidak ditemukan pada file. "
             f"Kolom yang tersedia: {list(df_spi.columns)}. "
             f"Untuk peta SPI, file harus memiliki kolom VALSPI/SPI."
         )
-    value = 'SPI'
 
     # Official BMKG SPI 7-class classification (McKee et al., 1993 breakpoints).
     # Sangat Kering (dry) -> Normal -> Sangat Basah (wet).
@@ -491,14 +479,14 @@ def bias_map():
     df_prakiraan, df_analisis, merged_df = arrange_table()
     info = cfg.year, cfg.month, cfg.dasarian, cfg.year_ver, cfg.month_ver, cfg.dasarian_ver, cfg.wilayah
 
-    # Resolve prakiraan value column (VAL or CH_forecast from merge)
-    if 'VAL' in merged_df.columns:
-        forecast_col = 'VAL'
-    elif 'VAL_forecast' in merged_df.columns:
-        forecast_col = 'VAL_forecast'
-    elif 'CH_forecast' in merged_df.columns:
-        forecast_col = 'CH_forecast'
+    # Resolve prakiraan value column (VAL or CH_forecast from merge). A chosen
+    # cfg.kolom was already checked by arrange_table; the merge may suffix it.
+    if cfg.kolom:
+        k = standard_column(cfg.kolom)
+        forecast_col = pick_column(merged_df, None, k, k + '_forecast')
     else:
+        forecast_col = pick_column(merged_df, None, 'VAL', 'VAL_forecast', 'CH_forecast')
+    if forecast_col is None:
         raise ValueError(
             f"Kolom prakiraan ('VAL' atau 'CH') tidak ditemukan pada data gabungan (merged). "
             f"Kolom yang tersedia: {list(merged_df.columns)}. "
@@ -506,11 +494,12 @@ def bias_map():
         )
 
     # Resolve analisis value column (CH or CH_analysis from merge)
-    if 'CH' in merged_df.columns:
-        actual_col = 'CH'
-    elif 'CH_analysis' in merged_df.columns:
-        actual_col = 'CH_analysis'
+    if cfg.kolom_pembanding:
+        k = standard_column(cfg.kolom_pembanding)
+        actual_col = pick_column(merged_df, None, k, k + '_analysis')
     else:
+        actual_col = pick_column(merged_df, None, 'CH', 'CH_analysis')
+    if actual_col is None:
         raise ValueError(
             f"Kolom analisis ('CH') tidak ditemukan pada data gabungan (merged). "
             f"Kolom yang tersedia: {list(merged_df.columns)}. "
