@@ -1,6 +1,6 @@
 # Plan: Hugging Face Space (Gradio) for Create-Map-IDW
 
-Status (2026-10-26): design settled; build step 1 (`Main/` changes) done but **uncommitted**; steps 2-4 not started. This file is the full handoff for a fresh session: read it, then `## Handoff` at the end.
+Status (2026-10-26): steps 1-3 built. `Main/` changes are in PR nashathur/Create-Map-IDW#48; the Space files live in `space/` (`app.py`, `runner.py`, `README.md`, `requirements.txt`) and passed a local end-to-end run on the sample files (Gradio 6.30, conda env `work`). Left: merge, tag `v1.1`, create the Space, push `space/` to it, set the secrets, step 4. This file is the full handoff for a fresh session: read it, then `## Handoff` at the end.
 
 ## Goal
 
@@ -109,7 +109,7 @@ Open row, groups split by thin hairlines. Group titles 13 px medium; field label
 | Peta | Jenis (190), Skala (100) |
 | Data | File (330) + Kolom (90); for VER and BIAS also File pembanding (analisis) + Kolom |
 | Periode | Tahun (80), Bulan (110), Dasarian (80) |
-| Versi | Tahun, Bulan, Dasarian; hidden for ACH, ASH, SPI, NOR, HTH |
+| Versi | Tahun, Bulan, Dasarian; hidden for ACH, ASH, SPI, NOR. HTH shows it: the HTH template prints "Update: <date>" from it; defaults to today's dasarian |
 | Opsi | checkboxes: Layer laut, Dokumen Word, Ekspor CSV, PNG saja |
 
 - Buttons: Kembalikan ke otomatis, Duplikat, Hapus.
@@ -156,6 +156,14 @@ When two files would get the same name, append the version: `... 2026 (versi 21 
 4. Try it with the real files in the Space, then with a second person queued at the same time.
 
 ## Handoff
+
+### Built in session 2 (2026-10-26)
+
+- `space/runner.py`: no Gradio; sets every `cfg` field per map (`_set_cfg`), runs `execute()`, renames outputs to the readable names, ZIPs, maps `status_update()` messages to progress steps (`step_of`), deletes run folders older than 1 h. Test: `tests/test_space_runner.py`.
+- `space/app.py`: the four cards. Session state is one dict `S` (files, maps, tingkat, wilayah, zip); redraws are driven by counter states `dv` (Daftar), `hv` (Hasil), `wv` (chips); `rt` starts a run. `run_batch` runs each map in a thread and yields every 0.5 s; `concurrency_limit=1, concurrency_id='peta'`. Env `SPACE_SKIP_LOG=1` turns off GitHub logging for local runs.
+- Local run: `.claude/launch.json` (not committed) starts it with PYTHONPATH set to the repo root. The Browser pane cannot pick files; tests copied samples into `%TEMP%\peta_space\samples` and uploaded them from JS via `/gradio_api/file=`.
+- Package fixes found on the way: `load_hth` now sniffs the CSV separator (real HTH files use `;`); SPI counts put -2,0 / -1,5 / -1,0 in the drier class; the HTH spatial join drops input PROVINSI/KABUPATEN columns; Gemini kabupaten text must name every category range.
+- Known gaps against the page design: Enter in the wilayah search does not take the top suggestion and the list is not capped at 6 (Gradio 6 dropdown); "otomatis/diubah" tags are plain label text, not coloured; upload progress is Gradio's own, not a pill.
 
 ### What step 1 built (all uncommitted on branch `claude/doc-narration-table`)
 
