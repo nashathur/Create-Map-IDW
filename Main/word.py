@@ -5,6 +5,7 @@ Word document generation from map data using docxtpl templates.
 
 import os
 import io
+import re
 
 from .config import cfg, CACHE_DIR
 from .utils import number_to_bulan, dasarian_romawi
@@ -65,9 +66,19 @@ def _build_table_subdoc(doc, table_data):
         paragraph.paragraph_format.space_before = Pt(6)
         paragraph.paragraph_format.space_after = Pt(6)
 
+    # Cell grid built once: table.cell() rescans the table on every call,
+    # which is quadratic for long HTH station tables.
+    grid = [row.cells for row in table.rows]
+
+    # Cells continuing a vertical merge get no text; the run's top cell holds it.
+    merge_top, merge_cont = set(), set()
+    for j, start, end in _merge_runs(table_data['rows'], table_data.get('merge_cols', 0)):
+        merge_top.add((start, j))
+        merge_cont.update((i, j) for i in range(start + 1, end + 1))
+
     # ---- Header row ----
     for j, col_name in enumerate(table_data['columns']):
-        cell = table.cell(0, j)
+        cell = grid[0][j]
         cell.text = ''
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -86,10 +97,18 @@ def _build_table_subdoc(doc, table_data):
     # ---- Data rows ----
     for i, row_data in enumerate(table_data['rows']):
         for j, val in enumerate(row_data):
-            cell = table.cell(i + 1, j)
+            cell = grid[i + 1][j]
             cell.text = ''
             p = cell.paragraphs[0]
             _set_paragraph_spacing(p)
+            # Set w:vMerge directly: cell.merge() recurses per row and hits
+            # the recursion limit on runs of ~1000 rows.
+            if (i, j) in merge_cont:
+                cell._tc.vMerge = 'continue'
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                continue
+            if (i, j) in merge_top:
+                cell._tc.vMerge = 'restart'
             run = p.add_run(val)
             run.font.size = FONT_SIZE
             run.font.name = FONT_NAME
@@ -103,6 +122,23 @@ def _build_table_subdoc(doc, table_data):
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
     return sd
+
+
+def _merge_runs(rows, merge_cols):
+    """Yield (col, first_row, last_row) for runs of equal values to merge.
+
+    A run in column j only spans rows that also share columns 0..j-1, so a
+    Kabupaten cell never merges across two Provinsi. Row indices are 0-based
+    over data rows (header excluded); single-row runs are skipped.
+    """
+    for j in range(merge_cols):
+        start = 0
+        for i in range(1, len(rows) + 1):
+            same = (i < len(rows) and rows[i][:j + 1] == rows[start][:j + 1])
+            if not same:
+                if i - 1 > start:
+                    yield j, start, i - 1
+                start = i
 
 
 def _print_fallback(title1, title2, analysis, table_data):
@@ -138,6 +174,16 @@ def _print_fallback(title1, title2, analysis, table_data):
         print()
 
 
+def report_filename(title1, title2):
+    """'Laporan Prakiraan Curah Hujan Bulan Oktober Dasarian III 2026.docx'.
+
+    Includes scale and period so runs for different months or dasarian
+    don't overwrite each other; strips characters Windows can't store.
+    """
+    name = ' '.join(f'Laporan {title1} {title2}'.split())
+    return re.sub(r'[\\/:*?"<>|]', '', name) + '.docx'
+
+
 def arrange_word(map_data):
     """Generate a Word document report from map data.
 
@@ -164,13 +210,17 @@ def arrange_word(map_data):
 
     # Compute narration and table data before any docx work so they
     # are available for the console fallback if Word generation fails.
+    # Separate try blocks: a narration failure must not drop the table.
     analysis = None
     table_data = None
     try:
         analysis = get_full_narration(map_data)
-        table_data = build_table_data(map_data)
     except Exception as e:
         print(f"Warning: narasi generation failed: {e}")
+    try:
+        table_data = build_table_data(map_data)
+    except Exception as e:
+        print(f"Warning: table generation failed: {e}")
 
     try:
         try:
@@ -219,9 +269,11 @@ def arrange_word(map_data):
         }
 
         # Render and save
-        doc.render(context)
-        output_dir = '/content' if is_colab() else os.getcwd()
-        output_path = os.path.join(output_dir, f'Laporan {peta} {tipe}.docx')
+        # autoescape: narration contains '<' (e.g. 'Bawah Normal (<85%)'),
+        # which unescaped is parsed as XML and silently dropped.
+        doc.render(context, autoescape=True)
+        output_dir = cfg.output_dir or ('/content' if is_colab() else os.getcwd())
+        output_path = os.path.join(output_dir, report_filename(title1, title2))
         doc.save(output_path)
 
         status_update(f"Word exported: {os.path.basename(output_path)}")

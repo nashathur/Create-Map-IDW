@@ -80,28 +80,48 @@ def clear_data_cache():
     
 
 
+_COLUMN_VARIANTS = {
+    'LON': ('BUJUR', 'LON', 'LONGITUDE'),
+    'LAT': ('LINTANG', 'LAT', 'LATITUDE'),
+    'CH': ('CH', 'CURAH HUJAN', 'CURAH_HUJAN'),
+    'VAL': ('VAL', 'VALUE', 'NILAI'),
+    'SH': ('SH', 'SIFAT HUJAN', 'SIFAT_HUJAN'),
+    'SH%': ('SH%', 'SH_PERSEN', 'SIFAT_HUJAN_PERSEN'),
+    'SPI': ('SPI', 'VALSPI', 'VAL_SPI', 'NILAI_SPI'),
+}
+
+
+def standard_column(col):
+    """Standard name for a column-name variant (e.g. 'valspi' -> 'SPI'), else the name unchanged."""
+    cu = str(col).upper().strip()
+    for std, variants in _COLUMN_VARIANTS.items():
+        if cu in variants:
+            return std
+    return col
+
+
 def _normalize_columns(df):
     """Normalize common column name variants to standard names."""
-    col_map = {}
-    for col in df.columns:
-        cu = str(col).upper().strip()
-        if cu in ('BUJUR', 'LON', 'LONGITUDE'):
-            col_map[col] = 'LON'
-        elif cu in ('LINTANG', 'LAT', 'LATITUDE'):
-            col_map[col] = 'LAT'
-        elif cu in ('CH', 'CURAH HUJAN', 'CURAH_HUJAN'):
-            col_map[col] = 'CH'
-        elif cu in ('VAL', 'VALUE', 'NILAI'):
-            col_map[col] = 'VAL'
-        elif cu in ('SH', 'SIFAT HUJAN', 'SIFAT_HUJAN'):
-            col_map[col] = 'SH'
-        elif cu in ('SH%', 'SH_PERSEN', 'SIFAT_HUJAN_PERSEN'):
-            col_map[col] = 'SH%'
-        elif cu in ('SPI', 'VALSPI', 'VAL_SPI', 'NILAI_SPI'):
-            col_map[col] = 'SPI'
+    col_map = {col: standard_column(col) for col in df.columns if standard_column(col) != col}
     if col_map:
         df = df.rename(columns=col_map)
     return df
+
+
+def pick_column(df, kolom, *fallback):
+    """Value column to map: *kolom* (cfg.kolom) when set, else the first *fallback* present.
+
+    Returns None when nothing in *fallback* is present; raises when *kolom* is set but missing.
+    """
+    if kolom:
+        for name in (standard_column(kolom), kolom):
+            if name in df.columns:
+                return name
+        raise ValueError(
+            f"Kolom '{kolom}' yang dipilih tidak ditemukan pada file. "
+            f"Kolom yang tersedia: {list(df.columns)}."
+        )
+    return next((c for c in fallback if c in df.columns), None)
 
 
 def _validate_lonlat(df, source_name):
@@ -353,34 +373,106 @@ def calculate_metrics(forecast_series, actual_series, contingency_table):
     return accuracy, hss, pss
 
 
+# =============================================================================
+# CATEGORY SCHEMES (shared by count_points, narasi and the Word table)
+# =============================================================================
+# Each scheme: (edges, [(label, range_text, extreme), ...]).
+# Bin i holds edges[i-1] <= x < edges[i]; len(categories) == len(edges) + 1.
+# 'extreme' categories are named in the narration/table whenever a kabupaten
+# has a notable share of them, even if they are not dominant there.
+
+CATEGORY_SCHEMES = {
+    'CH_Bulanan': ([100, 300, 500], [
+        ('Rendah', '0-100 mm', True),
+        ('Menengah', '100-300 mm', False),
+        ('Tinggi', '300-500 mm', False),
+        ('Sangat Tinggi', '>500 mm', True),
+    ]),
+    'CH_Dasarian': ([50, 150, 300], [
+        ('Rendah', '0-50 mm/das', True),
+        ('Menengah', '50-150 mm/das', False),
+        ('Tinggi', '150-300 mm/das', False),
+        ('Sangat Tinggi', '>300 mm/das', True),
+    ]),
+    'SH': ([85, 115], [
+        ('Bawah Normal', '<85%', True),
+        ('Normal', '85%-115%', False),
+        ('Atas Normal', '>115%', True),
+    ]),
+    'VERIF': ([1], [
+        ('Tidak Sesuai', '', False),
+        ('Sesuai', '', False),
+    ]),
+    'SPI': ([-2, -1.5, -1, 1, 1.5, 2], [
+        ('Sangat Kering', '≤-2,0', True),
+        ('Kering', '-2,0 s.d. -1,5', True),
+        ('Agak Kering', '-1,5 s.d. -1,0', False),
+        ('Normal', '-1,0 s.d. 1,0', False),
+        ('Agak Basah', '1,0 s.d. 1,5', False),
+        ('Basah', '1,5 s.d. 2,0', True),
+        ('Sangat Basah', '≥2,0', True),
+    ]),
+    'BIAS': ([-100, -25, 25, 100], [
+        ('Negatif Tinggi', '<-100 mm', True),
+        ('Negatif', '-100 s.d. -25 mm', False),
+        ('Netral', '-25 s.d. 25 mm', False),
+        ('Positif', '25 s.d. 100 mm', False),
+        ('Positif Tinggi', '>100 mm', True),
+    ]),
+    'HTH': ([1, 2, 3, 4, 5, 6], [
+        ('Masih Ada Hujan', '', False),
+        ('Sangat Pendek', '1-5 hari', False),
+        ('Pendek', '6-10 hari', False),
+        ('Menengah', '11-20 hari', False),
+        ('Panjang', '21-30 hari', True),
+        ('Sangat Panjang', '31-60 hari', True),
+        ('Kekeringan Ekstrim', '>60 hari', True),
+    ]),
+}
+
+
+def category_scheme(peta, tipe, skala):
+    """Return (edges, categories) for a map, or None if it has no fixed scheme."""
+    if peta == 'Verifikasi':
+        key = 'VERIF'
+    elif peta == 'Bias':
+        key = 'BIAS'
+    elif peta == 'HTH':
+        key = 'HTH'
+    elif peta == 'Probabilistik':
+        return None
+    elif tipe == 'SPI':
+        key = 'SPI'
+    elif tipe == 'Curah Hujan':
+        key = 'CH_Dasarian' if skala == 'Dasarian' else 'CH_Bulanan'
+    elif tipe == 'Sifat Hujan':
+        key = 'SH'
+    else:
+        return None
+    return CATEGORY_SCHEMES[key]
+
+
 def count_points(data, value, levels):
     if value not in data.columns:
         raise ValueError(
             f"Kolom '{value}' tidak ditemukan saat menghitung titik per wilayah. "
             f"Kolom yang tersedia: {list(data.columns)}."
         )
-    arr = data[value].values
+    arr = pd.to_numeric(pd.Series(data[value].values), errors='coerce').dropna().values
 
-    if cfg.tipe == 'Curah Hujan':
-        if cfg.skala == 'Bulanan':
-            bins = [0, 100, 300, 500, np.inf]
-            labels = ['Rendah', 'Menengah', 'Tinggi', 'Sangat Tinggi']
-        else:
-            bins = [0, 50, 150, 300, np.inf]
-            labels = ['Rendah', 'Menengah', 'Tinggi', 'Sangat Tinggi']
-    elif cfg.tipe == 'Sifat Hujan':
-        bins = [0, 85, 115, np.inf]
-        labels = ['Bawah Normal', 'Normal', 'Atas Normal']
-    elif cfg.peta == 'Verifikasi':
-        bins = [0, 1, np.inf]
-        labels = ['Tidak Sesuai', 'Sesuai']
+    scheme = category_scheme(cfg.peta, cfg.tipe, cfg.skala)
+    if scheme is not None:
+        edges, categories = scheme
+        labels = [c[0] for c in categories]
+        idx = np.digitize(arr, edges, right=False)
+        counts_arr = np.bincount(idx, minlength=len(labels))
     else:
-        bins = levels + [np.inf]
+        bins = list(levels) + [np.inf]
         labels = [f"{levels[i]}-{levels[i+1]}" for i in range(len(levels)-1)] + [f">={levels[-1]}"]
+        counts_arr, _ = np.histogram(arr, bins=bins)
 
-    counts_arr, _ = np.histogram(arr, bins=bins)
     counts = dict(zip(labels, counts_arr.astype(int).tolist()))
-    counts['total'] = len(arr)
+    counts['total'] = int(sum(counts.values()))
 
     return counts
 
@@ -402,20 +494,17 @@ def arrange_table():
     df_prakiraan = load_prakiraan(copy=True)
     df_analisis = load_analisis(copy=True)
 
-    if 'CH' in df_prakiraan.columns:
-        value = 'CH'
-        status_update("Found CH column in prakiraan")
-    elif 'VAL' in df_prakiraan.columns:
-        value = 'VAL'
-        status_update("Found VAL column in prakiraan")
-    else:
+    value = pick_column(df_prakiraan, cfg.kolom, 'CH', 'VAL')
+    if value is None:
         raise ValueError(
             f"Kolom 'CH' atau 'VAL' tidak ditemukan pada file prakiraan. "
             f"Kolom yang tersedia: {list(df_prakiraan.columns)}. "
             f"Untuk verifikasi, file prakiraan harus memiliki kolom CH atau VAL."
         )
+    status_update(f"Found {value} column in prakiraan")
 
-    if 'CH' not in df_analisis.columns:
+    actual = pick_column(df_analisis, cfg.kolom_pembanding, 'CH')
+    if actual is None:
         raise ValueError(
             f"Kolom 'CH' tidak ditemukan pada file analisis. "
             f"Kolom yang tersedia: {list(df_analisis.columns)}. "
@@ -424,9 +513,9 @@ def arrange_table():
 
     status_update("Processing dataframe categories")
     df_prakiraan['CH_category'] = categorize_ch_vec(df_prakiraan[value])
-    df_analisis['CH_category'] = categorize_ch_vec(df_analisis['CH'])
+    df_analisis['CH_category'] = categorize_ch_vec(df_analisis[actual])
     df_prakiraan['index'] = categorize_index_vec(df_prakiraan[value])
-    df_analisis['index'] = categorize_index_vec(df_analisis['CH'])
+    df_analisis['index'] = categorize_index_vec(df_analisis[actual])
 
     status_update("Merging forecast and analysis data")
     merged_df = pd.merge(df_prakiraan, df_analisis, on=['LON', 'LAT'], suffixes=('_forecast', '_analysis'))

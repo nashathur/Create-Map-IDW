@@ -1,13 +1,22 @@
 # narasi.py
 """
-AI-generated map captions using Gemini.
-Pre-computes percentages from count_points data to minimize token usage.
+Map narration and Word table data.
+
+The narration is hybrid: the opening sentence (period, dominant category and
+its percentage per province) and the verification metrics are built in code,
+so numbers are always exact. Gemini only writes the sentences naming
+kabupaten per category; its output is checked and replaced by a template
+sentence when it is missing, malformed or drops a kabupaten.
+
+Narration and table use the same grouping (group_kabupaten) and the same
+category scheme as count_points (utils.CATEGORY_SCHEMES), so they agree.
 """
 
-import json
+import calendar
+import re
 import time
 
-from .utils import number_to_bulan, dasarian_romawi, dasarian_to_date
+from .utils import number_to_bulan, dasarian_romawi, category_scheme
 from .config import cfg
 from .status import update as status_update
 
@@ -101,36 +110,40 @@ def _call_with_model_fallback(fn, models, max_retries=3, initial_delay=2.0):
     return None  # All models exhausted
 
 
-# =============================================================================
-# CATEGORY DEFINITIONS
-# =============================================================================
-
-CATEGORY_DEFS = {
-    ('Curah Hujan', 'Bulanan'): {"Rendah": "0-100 mm", "Menengah": "100-300 mm", "Tinggi": "300-500 mm", "Sangat Tinggi": ">500 mm"},
-    ('Curah Hujan', 'Dasarian'): {"Rendah": "0-50 mm/das", "Menengah": "50-150 mm/das", "Tinggi": "150-300 mm/das", "Sangat Tinggi": ">300 mm/das"},
-    ('Sifat Hujan', 'Bulanan'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
-    ('Sifat Hujan', 'Dasarian'): {"Bawah Normal": "0%-84%", "Normal": "85%-115%", "Atas Normal": ">116%"},
-    ('Verifikasi', 'Bulanan'): {"Tidak Sesuai": "0", "Sesuai": "1"},
-    ('Verifikasi', 'Dasarian'): {"Tidak Sesuai": "0", "Sesuai": "1"},
-    ('Bias', 'Bulanan'): "Selisih antara prakiraan dan analisis curah hujan (mm)",
-    ('Bias', 'Dasarian'): "Selisih antara prakiraan dan analisis curah hujan (mm)",
-    ('Normal', 'Bulanan'): {"Rendah": "0-100 mm", "Menengah": "100-300 mm", "Tinggi": "300-500 mm", "Sangat Tinggi": ">500 mm"},
-    ('Probabilistik', 'Bulanan'): "Peluang curah hujan per kategori ambang batas (50mm, 100mm, 150mm)",
-    ('HTH', 'Dasarian'): "Jumlah hari tanpa hujan berturut-turut",
-}
-
-CATEGORY_PRIORITY = {
-    'Sangat Tinggi': 1, 'Rendah': 1, 'Tinggi': 2, 'Menengah': 2,
-    'Atas Normal': 1, 'Bawah Normal': 1, 'Normal': 2,
-    '>30': 1, '21-30': 1, '11-20': 2, '6-10': 2, '1-5': 2,
-    'Sesuai': 1, 'Tidak Sesuai': 1,
-}
-_HIGH_PRIORITY_THRESHOLD = 5.0
+def _gemini_client():
+    """Return (genai, types, client), installing google-genai if needed."""
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        import subprocess
+        status_update("Installing google-genai...")
+        subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
+        from google import genai
+        from google.genai import types
+    api_key = cfg.gemini_api_key
+    if not api_key:
+        raise ValueError("Gemini API key not configured.")
+    return genai, types, genai.Client(api_key=api_key)
 
 
 # =============================================================================
-# PERCENTAGE COMPUTATION
+# CATEGORIES AND GROUPING (shared by narration and table)
 # =============================================================================
+
+_NEAR_TIE_PP = 10.0      # also list a kabupaten under categories this close to its dominant one
+_EXTREME_MIN_PCT = 5.0   # ... and under any extreme category holding at least this share
+
+
+def _categories(map_data):
+    """[(label, range_text, extreme), ...] in low → high order for this map."""
+    scheme = category_scheme(map_data.get('peta'), map_data.get('tipe'), map_data.get('skala'))
+    if scheme is not None:
+        return scheme[1]
+    counts = map_data.get('kabupaten_data') or map_data.get('province_data') or {}
+    first = next(iter(counts.values()), {})
+    return [(k, '', False) for k in first if k != 'total']
+
 
 def _counts_to_percentages(counts_dict):
     """Convert count_points output to sorted percentages.
@@ -152,394 +165,105 @@ def _counts_to_percentages(counts_dict):
     return result
 
 
-def _compute_all_percentages(province_data, kabupaten_data):
-    """Convert all province/kabupaten count dicts to percentage summaries."""
-    provinsi = {}
-    for name, counts in province_data.items():
-        provinsi[name] = _counts_to_percentages(counts)
+def _nice(name):
+    """'Kabupaten SORONG DAN MAYBRAT' -> 'Kabupaten Sorong dan Maybrat'.
 
-    kabupaten = {}
-    for name, counts in kabupaten_data.items():
-        if counts.get('total', 0) > 0:
-            kabupaten[name] = _counts_to_percentages(counts)
-
-    return {"provinsi": provinsi, "kabupaten": kabupaten}
-
-
-def _format_kabupaten_by_category(kabupaten_pcts):
-    """Group kabupaten by category using priority-based dual logic.
-
-    Priority 1 categories (extreme): include any kabupaten with >= threshold%.
-    Priority 2 categories (normal/moderate): include only when dominant.
-
-    Returns formatted string listing kabupaten names under each category.
+    Only all-caps words change, so already mixed-case words are kept.
     """
-    groups = {}
-    for kab_name, pcts in kabupaten_pcts.items():
+    words = [w.title() if w.isupper() else w for w in str(name).split()]
+    return ' '.join('dan' if w == 'Dan' else w for w in words)
+
+
+def group_kabupaten(kabupaten_data, categories):
+    """Map each category label to the kabupaten listed under it.
+
+    A kabupaten goes under its dominant category, under any category within
+    _NEAR_TIE_PP percentage points of it, and under any extreme category
+    holding at least _EXTREME_MIN_PCT of its points. Names are display-cased
+    and sorted; every category of the scheme is a key, in scheme order.
+    """
+    extreme = {c[0] for c in categories if c[2]}
+    groups = {c[0]: [] for c in categories}
+    for kab in sorted(kabupaten_data, key=_nice):
+        pcts = _counts_to_percentages(kabupaten_data[kab])
         if not pcts:
             continue
-        dominant = pcts[0][0]
-        # Always add kabupaten to its dominant category
-        groups.setdefault(dominant, []).append(kab_name)
-        # For priority-1 categories, also add if >= threshold (non-dominant)
-        for cat, val in pcts[1:]:
-            if CATEGORY_PRIORITY.get(cat, 2) == 1 and val >= _HIGH_PRIORITY_THRESHOLD:
-                groups.setdefault(cat, []).append(kab_name)
-
-    lines = []
-    for cat, kabs in groups.items():
-        lines.append(f"{cat}: {', '.join(kabs)}")
-    return "\n".join(lines)
-
-
-def _format_percentages(pct_data):
-    """Format pre-computed percentages into a compact string for the prompt."""
-    lines = []
-
-    lines.append("=== PROVINSI ===")
-    for name, pcts in pct_data['provinsi'].items():
-        if not pcts:
-            continue
-        dominant = pcts[0][0]
-        pct_str = ", ".join([f"{cat}: {val}%" for cat, val in pcts])
-        lines.append(f"{name} (dominan: {dominant}): {pct_str}")
-
-    kab_grouped = _format_kabupaten_by_category(pct_data['kabupaten'])
-    if kab_grouped:
-        lines.append("=== KABUPATEN PER KATEGORI ===")
-        lines.append(kab_grouped)
-
-    return "\n".join(lines)
+        top = pcts[0][1]
+        for cat, pct in pcts:
+            if top - pct <= _NEAR_TIE_PP or (cat in extreme and pct >= _EXTREME_MIN_PCT):
+                groups.setdefault(cat, []).append(_nice(kab))
+    return groups
 
 
 # =============================================================================
-# EXAMPLE PAIRS (using pre-computed percentages)
+# WORDING
 # =============================================================================
 
-EXAMPLE_PAIRS = {
-    # ---- 1. Prakiraan + Curah Hujan + Bulanan ----
-    ('Prakiraan', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Menengah: 35.7%, Sangat Tinggi: 10.0%, Rendah: 4.3%\n"
-            "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 38.3%, Rendah: 10.6%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak\n"
-            "Tinggi: Manokwari, Manokwari Selatan, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak, Manokwari\n"
-            "Rendah: Sorong Selatan, Fak Fak"
-        ),
-        "output": (
-            "Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi curah hujan "
-            "Tinggi (300-500 mm) sebesar 50.0%, sementara Papua Barat Daya didominasi Menengah (100-300 mm) "
-            "sebesar 42.6%. Curah hujan Sangat Tinggi (>500 mm) diprakirakan terjadi di Kab. Pegunungan Arfak "
-            "dan Manokwari, sedangkan curah hujan Rendah (0-100 mm) diprakirakan di Kab. Sorong Selatan dan Fak Fak."
-        )
-    },
+def _map_title(peta, tipe):
+    if peta == 'Verifikasi':
+        return f"Verifikasi Prakiraan {tipe}"
+    if peta == 'Normal':
+        return "Normal Curah Hujan"
+    if peta == 'Bias':
+        return "Bias Curah Hujan"
+    if peta == 'HTH':
+        return "Monitoring Hari Tanpa Hujan Berturut-turut"
+    if peta == 'Probabilistik':
+        return "Prakiraan Probabilistik Curah Hujan"
+    if tipe == 'SPI':
+        return f"{peta} Indeks Presipitasi Terstandarisasi (SPI)"
+    return f"{peta} {tipe}"
 
-    # ---- 2. Prakiraan + Curah Hujan + Dasarian ----
-    ('Prakiraan', 'Curah Hujan', 'Dasarian'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Dasarian I September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Menengah): Menengah: 46.2%, Tinggi: 30.8%, Rendah: 15.4%, Sangat Tinggi: 7.7%\n"
-            "Papua Barat Daya (dominan: Menengah): Menengah: 48.9%, Tinggi: 26.7%, Rendah: 17.8%, Sangat Tinggi: 6.7%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong, Sorong Selatan\n"
-            "Menengah: Raja Ampat, Teluk Wondama, Maybrat, Fak Fak, Teluk Bintuni\n"
-            "Tinggi: Manokwari, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
-        ),
-        "output": (
-            "Prakiraan Curah Hujan Dasarian I September 2024 (1 - 10 September 2024) di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya didominasi curah hujan Menengah (50-150 mm/das) "
-            "sebesar 46.2% di Papua Barat dan 48.9% di Papua Barat Daya. Curah hujan Rendah (0-50 mm/das) "
-            "diprakirakan terjadi di Kab. Sorong dan Sorong Selatan. Sedangkan curah hujan Tinggi "
-            "(150-300 mm/das) dan Sangat Tinggi (>300 mm/das) diprakirakan terjadi di Kab. Manokwari, "
-            "Kaimana, dan Pegunungan Arfak."
-        )
-    },
 
-    # ---- 3. Prakiraan + Sifat Hujan + Bulanan ----
-    ('Prakiraan', 'Sifat Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Normal): Normal: 57.1%, Atas Normal: 25.7%, Bawah Normal: 17.1%\n"
-            "Papua Barat Daya (dominan: Normal): Normal: 46.8%, Bawah Normal: 31.9%, Atas Normal: 21.3%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
-            "Normal: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Kaimana\n"
-            "Atas Normal: Manokwari, Pegunungan Arfak"
-        ),
-        "output": (
-            "Prakiraan Sifat Hujan Bulan September 2024 di Provinsi Papua Barat dan Papua Barat Daya "
-            "umumnya didominasi sifat hujan Normal (85%-115%) sebesar 57.1% di Papua Barat dan 46.8% "
-            "di Papua Barat Daya. Sifat hujan Atas Normal (>116%) diprakirakan terjadi di Kab. Manokwari "
-            "dan Pegunungan Arfak, sedangkan sifat hujan Bawah Normal (0%-84%) diprakirakan di Kab. "
-            "Teluk Bintuni dan Fak Fak."
-        )
-    },
+def _kind(peta, tipe):
+    """Noun put before a category label: 'curah hujan Tinggi', 'kategori Netral'."""
+    if peta in ('Prakiraan', 'Analisis', 'Normal', 'Probabilistik'):
+        if tipe == 'Curah Hujan':
+            return 'curah hujan'
+        if tipe == 'Sifat Hujan':
+            return 'sifat hujan'
+    return 'kategori'
 
-    # ---- 4. Prakiraan + Sifat Hujan + Dasarian ----
-    ('Prakiraan', 'Sifat Hujan', 'Dasarian'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Dasarian II September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Normal): Normal: 60.0%, Atas Normal: 25.7%, Bawah Normal: 14.3%\n"
-            "Papua Barat Daya (dominan: Normal): Normal: 53.2%, Bawah Normal: 29.8%, Atas Normal: 17.0%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
-            "Normal: Sorong, Raja Ampat, Manokwari, Teluk Wondama, Maybrat, Kaimana\n"
-            "Atas Normal: Pegunungan Arfak, Manokwari Selatan"
-        ),
-        "output": (
-            "Prakiraan Sifat Hujan Dasarian II September 2024 (11 - 20 September 2024) di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya didominasi sifat hujan Normal (85%-115%) sebesar "
-            "60.0% di Papua Barat dan 53.2% di Papua Barat Daya. Sifat hujan Bawah Normal (0%-84%) "
-            "diprakirakan terjadi di Kab. Teluk Bintuni dan Fak Fak, sedangkan sifat hujan Atas Normal "
-            "(>116%) diprakirakan di Kab. Pegunungan Arfak dan Manokwari Selatan."
-        )
-    },
 
-    # ---- 5. Analisis + Curah Hujan + Bulanan ----
-    ('Analisis', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan Agustus 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Menengah): Menengah: 42.9%, Tinggi: 40.0%, Sangat Tinggi: 10.0%, Rendah: 7.1%\n"
-            "Papua Barat Daya (dominan: Menengah): Menengah: 38.3%, Tinggi: 34.0%, Rendah: 17.0%, Sangat Tinggi: 10.6%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Fak Fak\n"
-            "Tinggi: Manokwari, Teluk Bintuni, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak, Manokwari Selatan, Manokwari\n"
-            "Rendah: Sorong Selatan, Fak Fak"
-        ),
-        "output": (
-            "Analisis Curah Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
-            "umumnya didominasi curah hujan Menengah (100-300 mm) sebesar 42.9% di Papua Barat dan "
-            "38.3% di Papua Barat Daya. Curah hujan Sangat Tinggi (>500 mm) tercatat di Kab. Pegunungan Arfak, "
-            "Manokwari Selatan, dan Manokwari, sedangkan curah hujan Rendah (0-100 mm) tercatat di Kab. "
-            "Sorong Selatan dan Fak Fak."
-        )
-    },
-
-    # ---- 6. Analisis + Curah Hujan + Dasarian ----
-    ('Analisis', 'Curah Hujan', 'Dasarian'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Dasarian III Agustus 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Menengah): Menengah: 43.1%, Tinggi: 27.7%, Rendah: 23.1%, Sangat Tinggi: 6.2%\n"
-            "Papua Barat Daya (dominan: Menengah): Menengah: 44.4%, Rendah: 26.7%, Tinggi: 22.2%, Sangat Tinggi: 6.7%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong, Sorong Selatan, Maybrat\n"
-            "Menengah: Raja Ampat, Teluk Wondama, Fak Fak, Teluk Bintuni\n"
-            "Tinggi: Manokwari, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
-        ),
-        "output": (
-            "Analisis Curah Hujan Dasarian III Agustus 2024 (21 - 31 Agustus 2024) di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya didominasi curah hujan Menengah (50-150 mm/das) "
-            "sebesar 43.1% di Papua Barat dan 44.4% di Papua Barat Daya. Curah hujan Rendah "
-            "(0-50 mm/das) tercatat di Kab. Sorong, Sorong Selatan, dan Maybrat, sedangkan curah hujan "
-            "Tinggi (150-300 mm/das) dan Sangat Tinggi (>300 mm/das) tercatat di Kab. Manokwari, "
-            "Kaimana, dan Pegunungan Arfak."
-        )
-    },
-
-    # ---- 7. Analisis + Sifat Hujan + Bulanan ----
-    ('Analisis', 'Sifat Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan Agustus 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Normal): Normal: 54.3%, Atas Normal: 25.7%, Bawah Normal: 20.0%\n"
-            "Papua Barat Daya (dominan: Normal): Normal: 42.6%, Bawah Normal: 34.0%, Atas Normal: 23.4%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Bawah Normal: Teluk Bintuni, Fak Fak, Maybrat\n"
-            "Normal: Sorong, Raja Ampat, Teluk Wondama, Kaimana, Sorong Selatan\n"
-            "Atas Normal: Manokwari, Pegunungan Arfak"
-        ),
-        "output": (
-            "Analisis Sifat Hujan Bulan Agustus 2024 di Provinsi Papua Barat dan Papua Barat Daya "
-            "umumnya didominasi sifat hujan Normal (85%-115%) sebesar 54.3% di Papua Barat dan 42.6% "
-            "di Papua Barat Daya. Sifat hujan Atas Normal (>116%) tercatat di Kab. Manokwari dan "
-            "Pegunungan Arfak, sedangkan sifat hujan Bawah Normal (0%-84%) tercatat di Kab. Teluk Bintuni, "
-            "Fak Fak, dan Maybrat."
-        )
-    },
-
-    # ---- 8. Analisis + Sifat Hujan + Dasarian ----
-    ('Analisis', 'Sifat Hujan', 'Dasarian'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Dasarian I Agustus 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Normal): Normal: 57.1%, Atas Normal: 25.7%, Bawah Normal: 17.1%\n"
-            "Papua Barat Daya (dominan: Normal): Normal: 51.1%, Bawah Normal: 27.7%, Atas Normal: 21.3%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Bawah Normal: Teluk Bintuni, Fak Fak\n"
-            "Normal: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Kaimana\n"
-            "Atas Normal: Manokwari, Pegunungan Arfak"
-        ),
-        "output": (
-            "Analisis Sifat Hujan Dasarian I Agustus 2024 (1 - 10 Agustus 2024) di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya didominasi sifat hujan Normal (85%-115%) sebesar "
-            "57.1% di Papua Barat dan 51.1% di Papua Barat Daya. Sifat hujan Bawah Normal (0%-84%) "
-            "tercatat di Kab. Teluk Bintuni dan Fak Fak, sedangkan sifat hujan Atas Normal (>116%) "
-            "tercatat di Kab. Manokwari dan Pegunungan Arfak."
-        )
-    },
-
-    # ---- 9. Verifikasi + Curah Hujan ----
-    ('Verifikasi', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September 2024\n"
-            "Metrik: PC=45.30%, HSS=1.20%, PSS=12.00%\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Tidak Sesuai): Tidak Sesuai: 57.1%, Sesuai: 42.9%\n"
-            "Papua Barat Daya (dominan: Tidak Sesuai): Tidak Sesuai: 59.6%, Sesuai: 40.4%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Tidak Sesuai: Manokwari, Pegunungan Arfak, Teluk Bintuni, Kaimana, Fak Fak\n"
-            "Sesuai: Sorong, Maybrat, Raja Ampat, Teluk Wondama"
-        ),
-        "output": (
-            "Verifikasi Prakiraan Curah Hujan Bulan September 2024 di Provinsi Papua Barat dan "
-            "Papua Barat Daya menunjukkan hasil yang umumnya Tidak Sesuai sebesar 57.1% di Papua Barat "
-            "dan 59.6% di Papua Barat Daya. Beberapa wilayah dengan kesesuaian lebih tinggi antara lain "
-            "Kab. Sorong, Maybrat, Raja Ampat, dan Teluk Wondama. Akurasi keseluruhan (PC) mencapai "
-            "45.30%, HSS sebesar 1.20%, dan PSS sebesar 12.00%."
-        )
-    },
-
-    # ---- 10. Verifikasi + Sifat Hujan ----
-    ('Verifikasi', 'Sifat Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September 2024\n"
-            "Metrik: PC=52.14%, HSS=8.30%, PSS=15.00%\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Sesuai): Sesuai: 57.1%, Tidak Sesuai: 42.9%\n"
-            "Papua Barat Daya (dominan: Sesuai): Sesuai: 57.4%, Tidak Sesuai: 42.6%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Tidak Sesuai: Teluk Bintuni, Fak Fak, Kaimana\n"
-            "Sesuai: Manokwari, Sorong, Raja Ampat, Pegunungan Arfak, Maybrat"
-        ),
-        "output": (
-            "Verifikasi Prakiraan Sifat Hujan Bulan September 2024 di Provinsi Papua Barat dan "
-            "Papua Barat Daya menunjukkan hasil yang umumnya Sesuai sebesar 57.1% di Papua Barat dan "
-            "57.4% di Papua Barat Daya. Beberapa wilayah yang menunjukkan ketidaksesuaian antara lain "
-            "Kab. Teluk Bintuni, Fak Fak, dan Kaimana. Akurasi keseluruhan (PC) mencapai 52.14%, "
-            "HSS sebesar 8.30%, dan PSS sebesar 15.00%."
-        )
-    },
-
-    # ---- 11. Probabilistik + Curah Hujan ----
-    ('Probabilistik', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan Januari 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Tinggi): Tinggi: 50.0%, Sangat Tinggi: 42.9%, Menengah: 7.1%\n"
-            "Papua Barat Daya (dominan: Tinggi): Tinggi: 53.2%, Sangat Tinggi: 40.4%, Menengah: 6.4%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Menengah: Sorong, Sorong Selatan\n"
-            "Tinggi: Raja Ampat, Teluk Wondama, Fak Fak, Maybrat, Teluk Bintuni\n"
-            "Sangat Tinggi: Manokwari, Pegunungan Arfak, Kaimana"
-        ),
-        "output": (
-            "Prakiraan Probabilistik Curah Hujan Bulan Januari 2024 di Provinsi Papua Barat dan "
-            "Papua Barat Daya umumnya didominasi curah hujan Tinggi (300-500 mm) sebesar 50.0% di "
-            "Papua Barat dan 53.2% di Papua Barat Daya. Curah hujan Sangat Tinggi (>500 mm) "
-            "diprakirakan terjadi di Kab. Manokwari, Pegunungan Arfak, dan Kaimana, sedangkan curah "
-            "hujan Menengah (100-300 mm) diprakirakan di Kab. Sorong dan Sorong Selatan."
-        )
-    },
-
-    # ---- 12. Bias + Curah Hujan ----
-    ('Bias', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Menengah): Menengah: 42.9%, Rendah: 28.6%, Tinggi: 21.4%, Sangat Tinggi: 7.1%\n"
-            "Papua Barat Daya (dominan: Rendah): Rendah: 38.3%, Menengah: 31.9%, Tinggi: 21.3%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong, Sorong Selatan, Fak Fak\n"
-            "Menengah: Raja Ampat, Teluk Wondama, Maybrat, Teluk Bintuni\n"
-            "Tinggi: Manokwari, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
-        ),
-        "output": (
-            "Bias Curah Hujan Bulan September 2024 di Provinsi Papua Barat didominasi kategori "
-            "Menengah sebesar 42.9%, sementara Papua Barat Daya didominasi kategori Rendah sebesar "
-            "38.3%. Bias yang lebih tinggi tercatat di Kab. Manokwari, Kaimana, dan Pegunungan Arfak, "
-            "sedangkan bias Rendah tercatat di Kab. Sorong, Sorong Selatan, dan Fak Fak."
-        )
-    },
-
-    # ---- 13. Normal + Curah Hujan ----
-    ('Normal', 'Curah Hujan', 'Bulanan'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Bulan September (Rata-rata 1991-2020)\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: Menengah): Menengah: 50.0%, Tinggi: 31.4%, Rendah: 11.4%, Sangat Tinggi: 7.1%\n"
-            "Papua Barat Daya (dominan: Menengah): Menengah: 42.6%, Tinggi: 27.7%, Rendah: 21.3%, Sangat Tinggi: 8.5%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "Rendah: Sorong Selatan\n"
-            "Menengah: Sorong, Raja Ampat, Teluk Wondama, Maybrat, Fak Fak, Teluk Bintuni\n"
-            "Tinggi: Manokwari, Kaimana\n"
-            "Sangat Tinggi: Pegunungan Arfak"
-        ),
-        "output": (
-            "Normal Curah Hujan Bulan September berdasarkan rata-rata periode 1991-2020 di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya pada kategori Menengah (100-300 mm) sebesar "
-            "50.0% di Papua Barat dan 42.6% di Papua Barat Daya. Curah hujan normal Tinggi (300-500 mm) "
-            "dan Sangat Tinggi (>500 mm) tercatat di Kab. Manokwari, Kaimana, dan Pegunungan Arfak, "
-            "sedangkan curah hujan normal Rendah (0-100 mm) di Kab. Sorong Selatan."
-        )
-    },
-
-    # ---- 14. HTH ----
-    ('HTH', None, 'Dasarian'): {
-        "input": (
-            "Wilayah: Papua Barat dan Papua Barat Daya\n"
-            "Periode: Update Dasarian I September 2024\n"
-            "=== PROVINSI ===\n"
-            "Papua Barat (dominan: 1-5): 1-5: 42.6%, 6-10: 31.9%, 11-20: 17.0%, 21-30: 6.4%, >30: 2.1%\n"
-            "Papua Barat Daya (dominan: 1-5): 1-5: 42.9%, 6-10: 34.3%, 11-20: 17.1%, 21-30: 5.7%\n"
-            "=== KABUPATEN PER KATEGORI ===\n"
-            "1-5: Manokwari, Raja Ampat, Teluk Wondama, Fak Fak\n"
-            "6-10: Pegunungan Arfak, Maybrat, Teluk Bintuni, Kaimana\n"
-            "11-20: Manokwari Selatan\n"
-            "21-30: Sorong\n"
-            ">30: Sorong Selatan"
-        ),
-        "output": (
-            "Monitoring Hari Tanpa Hujan Berturut-turut Update Dasarian I September 2024 di Provinsi "
-            "Papua Barat dan Papua Barat Daya umumnya pada kategori 1-5 hari sebesar 42.6% di Papua "
-            "Barat dan 42.9% di Papua Barat Daya. Hari tanpa hujan yang lebih panjang (21-30 hari dan "
-            ">30 hari) perlu mendapat perhatian di Kab. Sorong dan Sorong Selatan."
-        )
-    },
+_VERBS = {
+    'Prakiraan': 'diprakirakan terjadi',
+    'Probabilistik': 'diprakirakan terjadi',
+    'Analisis': 'tercatat',
+    'Normal': 'tercatat',
+    'Bias': 'tercatat',
+    'HTH': 'terpantau',
+    'Verifikasi': 'terdapat',
 }
 
 
-# =============================================================================
-# PROMPT HELPERS
-# =============================================================================
+def _phrase(kind, label, rng):
+    return f"{kind} {label} ({rng})" if rng else f"{kind} {label}"
 
-def _build_periode(map_data):
-    """Build human-readable period string from map_data."""
+
+def _join_id(items):
+    """Indonesian list: 'A', 'A dan B', 'A, B, dan C'."""
+    items = list(items)
+    if len(items) <= 1:
+        return ''.join(items)
+    if len(items) == 2:
+        return f"{items[0]} dan {items[1]}"
+    return ', '.join(items[:-1]) + f", dan {items[-1]}"
+
+
+def _kab_list(names):
+    """'Kab. Sorong, Maybrat, dan Kota Sorong' — one 'Kab.' for the kabupaten."""
+    kab = [n for n in names if not n.lower().startswith(('kota ', 'kab'))]
+    other = [n for n in names if n not in kab]
+    items = ([f"Kab. {kab[0]}"] + kab[1:] if kab else []) + other
+    return _join_id(items)
+
+
+def _capitalize(s):
+    return s[:1].upper() + s[1:]
+
+
+def _build_periode(map_data, with_dates=False):
+    """Human-readable period; with_dates adds '(1 - 10 September 2024)' for dasarian."""
     peta = map_data['peta']
     skala = map_data.get('skala', '')
     month = map_data['month']
@@ -552,152 +276,245 @@ def _build_periode(map_data):
             f"{number_to_bulan(map_data['month_ver'])} {map_data['year_ver']}"
         )
     if skala == 'Dasarian':
-        return f"Dasarian {dasarian_romawi(map_data['dasarian'])} {bulan} {year}"
+        das = map_data['dasarian']
+        text = f"Dasarian {dasarian_romawi(das)} {bulan} {year}"
+        if with_dates:
+            start = {1: 1, 2: 11, 3: 21}[das]
+            end = {1: 10, 2: 20, 3: calendar.monthrange(year, month)[1]}[das]
+            text += f" ({start} - {end} {bulan} {year})"
+        return text
     if peta == 'Normal':
         return f"Bulan {bulan} (Rata-rata 1991-2020)"
     return f"Bulan {bulan} {year}"
 
 
-def _resolve_example_key(peta, tipe, skala):
-    """Map (peta, tipe, skala) to the correct EXAMPLE_PAIRS key."""
-    if peta == 'HTH':
-        return ('HTH', None, 'Dasarian')
-    if peta == 'Verifikasi':
-        return (peta, tipe, 'Bulanan')
-    return (peta, tipe, skala)
+# =============================================================================
+# NARRATION PIECES
+# =============================================================================
+
+def _per_province(map_data):
+    return str(map_data.get('nama_wilayah', '')).startswith('Provinsi')
 
 
-def _resolve_cat_defs(peta, tipe, skala):
-    """Resolve category definitions for the prompt."""
-    if peta == 'HTH':
-        return CATEGORY_DEFS.get(('HTH', 'Dasarian'), "")
-    if peta == 'Verifikasi':
-        return CATEGORY_DEFS.get(('Verifikasi', skala), {})
-    if peta in ('Bias', 'Probabilistik', 'Normal'):
-        return CATEGORY_DEFS.get((peta, skala), "")
-    return CATEGORY_DEFS.get((tipe, skala), {})
+def _sum_counts(count_dicts):
+    total = {}
+    for counts in count_dicts:
+        for k, v in counts.items():
+            total[k] = total.get(k, 0) + v
+    return total
 
 
-def _build_input_text(nama_wilayah, periode, pct_text, metrik_str=""):
-    """Assemble the input block for the prompt."""
-    lines = [
-        f"Wilayah: {nama_wilayah}",
-        f"Periode: {periode}",
+def _dominants(map_data):
+    """[(place, label, pct), ...]: one per province, or one for a kabupaten-level wilayah."""
+    if _per_province(map_data):
+        out = []
+        for prov, counts in map_data['province_data'].items():
+            pcts = _counts_to_percentages(counts)
+            if pcts:
+                out.append((_nice(prov), pcts[0][0], pcts[0][1]))
+        return out
+    pcts = _counts_to_percentages(_sum_counts(map_data['province_data'].values()))
+    return [(_nice(map_data['nama_wilayah']), pcts[0][0], pcts[0][1])] if pcts else []
+
+
+def _lead_sentence(map_data, categories, dominants):
+    """Opening sentence with exact percentages, built without the LLM."""
+    peta, tipe = map_data['peta'], map_data.get('tipe')
+    rng = {c[0]: c[1] for c in categories}
+    kind = _kind(peta, tipe)
+    head = f"{_map_title(peta, tipe)} {_build_periode(map_data, with_dates=True)}"
+
+    if not _per_province(map_data):
+        place, cat, pct = dominants[0]
+        return f"{head} di {place} didominasi {_phrase(kind, cat, rng.get(cat, ''))} sebesar {pct}%."
+
+    if len({d[1] for d in dominants}) == 1:
+        cat = dominants[0][1]
+        names = _join_id(d[0] for d in dominants)
+        if len(dominants) == 1:
+            share = f"{dominants[0][2]}%"
+        else:
+            share = _join_id(f"{d[2]}% di {d[0]}" for d in dominants)
+        umumnya = 'umumnya ' if len(dominants) > 1 else ''
+        return (f"{head} di Provinsi {names} {umumnya}didominasi "
+                f"{_phrase(kind, cat, rng.get(cat, ''))} sebesar {share}.")
+
+    parts = [f"Provinsi {place} didominasi {_phrase(kind, cat, rng.get(cat, ''))} sebesar {pct}%"
+             for place, cat, pct in dominants]
+    return f"{head} di {parts[0]}, sementara " + ', '.join(parts[1:]) + "."
+
+
+def _kabupaten_items(map_data, categories, dominants):
+    """[(label, range, [kab names]), ...] worth naming after the lead sentence.
+
+    Skips categories that are already dominant everywhere (the lead covers
+    them), unless they are extreme.
+    """
+    groups = group_kabupaten(map_data['kabupaten_data'], categories)
+    dominant_cats = {d[1] for d in dominants} if len({d[1] for d in dominants}) == 1 else set()
+    return [
+        (label, rng, groups[label])
+        for label, rng, extreme in categories
+        if groups.get(label) and (extreme or label not in dominant_cats)
     ]
-    if metrik_str:
-        lines.append(metrik_str)
-    lines.append(pct_text)
-    return "\n".join(lines)
+
+
+def _kabupaten_template(items, kind, verb):
+    """Deterministic fallback for the kabupaten sentence."""
+    clauses = [f"{_phrase(kind, label, rng)} {verb} di {_kab_list(kabs)}" for label, rng, kabs in items]
+    if not clauses:
+        return ''
+    if len(clauses) == 1:
+        text = clauses[0]
+    else:
+        text = ', '.join(clauses[:-1]) + ', sedangkan ' + clauses[-1]
+    return _capitalize(text) + '.'
+
+
+def _metrics_sentence(map_data):
+    if map_data.get('peta') != 'Verifikasi' or 'accuracy' not in map_data:
+        return ''
+    return (f"Akurasi keseluruhan (PC) mencapai {map_data['accuracy']:.2%}, "
+            f"HSS sebesar {map_data['hss']:.2%}, dan PSS sebesar {map_data['pss']:.2%}.")
+
+
+_MARKDOWN = re.compile(r'[*_#`]+|^\s*[-•]\s*', re.MULTILINE)
+
+
+def _clean_llm_text(text):
+    """Strip markdown and collapse whitespace."""
+    return ' '.join(_MARKDOWN.sub('', text or '').split())
+
+
+def _valid_kabupaten_text(text, items):
+    """Reject LLM output with percentages, runaway length, or a missing kabupaten.
+
+    Category ranges such as '(<85%)' are allowed; any other '%' is not.
+    """
+    if not text or len(text) > 1500:
+        return False
+    stripped = text
+    for _, rng, _ in items:
+        if rng:
+            stripped = stripped.replace(rng, '')
+    if '%' in stripped:
+        return False
+    low = text.lower()
+    return all(kab.lower() in low for _, _, kabs in items for kab in kabs)
+
+
+_KAB_EXAMPLE = (
+    "DATA:\n"
+    "curah hujan Tinggi (300-500 mm): Kab. Manokwari, Kaimana\n"
+    "curah hujan Sangat Tinggi (>500 mm): Kab. Pegunungan Arfak\n"
+    "curah hujan Rendah (0-100 mm): Kab. Sorong Selatan, Fak Fak\n"
+    "Output:\n"
+    "Curah hujan Tinggi (300-500 mm) hingga Sangat Tinggi (>500 mm) diprakirakan terjadi di "
+    "Kab. Manokwari, Kaimana, dan Pegunungan Arfak, sedangkan curah hujan Rendah (0-100 mm) "
+    "diprakirakan terjadi di Kab. Sorong Selatan dan Fak Fak."
+)
+
+
+def _llm_kabupaten_text(lead, items, kind, verb):
+    """Ask Gemini for the kabupaten sentences; None on any failure or bad output."""
+    try:
+        _, _, client = _gemini_client()
+    except Exception as e:
+        status_update(f"Gemini unavailable ({e}); using template narration")
+        return None
+
+    data = "\n".join(f"{_phrase(kind, label, rng)}: {_kab_list(kabs)}"
+                     for label, rng, kabs in items)
+    prompt = (
+        "Kamu penulis narasi peta cuaca BMKG. Kalimat pembuka narasi sudah ditulis:\n"
+        f"\"{lead}\"\n\n"
+        "Tulis 1-2 kalimat LANJUTAN yang menyebutkan kabupaten per kategori pada DATA.\n"
+        "ATURAN:\n"
+        "1. Sebutkan SEMUA kategori dan SEMUA kabupaten pada DATA, dengan ejaan yang sama persis.\n"
+        "2. Tulis kategori beserta rentangnya persis seperti pada DATA.\n"
+        f"3. Gunakan kata kerja '{verb}'.\n"
+        "4. DILARANG menulis persentase, mengulang kalimat pembuka, menambah informasi "
+        "di luar DATA, atau memakai formatting (bold, bullet, heading).\n\n"
+        f"=== CONTOH ===\n{_KAB_EXAMPLE}\n=== AKHIR CONTOH ===\n\n"
+        f"DATA:\n{data}\nOutput:"
+    )
+
+    def _generate(model):
+        return client.models.generate_content(model=model, contents=prompt)
+
+    try:
+        response = _call_with_model_fallback(_generate, ANALYSIS_MODELS)
+    except Exception as e:
+        status_update(f"Gemini error ({e}); using template narration")
+        return None
+    if response is None:
+        status_update("All models exhausted for narration; using template narration")
+        return None
+
+    text = _clean_llm_text(getattr(response, 'text', None))
+    if not _valid_kabupaten_text(text, items):
+        status_update("Gemini narration failed checks; using template narration")
+        return None
+    return text
 
 
 # =============================================================================
 # MAIN FUNCTION
 # =============================================================================
 
-def get_analysis(map_data):
-    """Generate AI narration for a BMKG map.
+def get_analysis(map_data, use_llm=True):
+    """Generate the narration paragraph for a BMKG map.
 
     Args:
         map_data: dict returned by execute() or overlay_image(), must contain
                   'province_data', 'kabupaten_data', and map metadata.
+        use_llm: False skips Gemini and uses the template for every sentence.
 
     Returns:
-        str: Generated narration paragraph in Bahasa Indonesia.
+        str: Narration paragraph in Bahasa Indonesia.
     """
-    try:
-        from google import genai
-    except ImportError:
-        import subprocess
-        status_update("Installing google-genai...")
-        subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
-        from google import genai
-    api_key = cfg.gemini_api_key
-    if not api_key:
-        raise ValueError("Gemini API key not configured.")
-    client = genai.Client(api_key=api_key)
-    status_update("Generating AI narration")
-
     peta = map_data['peta']
-    tipe = map_data['tipe']
-    skala = map_data['skala']
-    nama_wilayah = map_data['nama_wilayah']
 
-    # --- Guard: Probabilistik has no count data ---
-    if peta == 'Probabilistik':
-        if map_data.get('province_data') is None:
-            return "Narasi otomatis tidak tersedia untuk peta Probabilistik."
-
-    # --- Guard: missing data ---
+    if peta == 'Probabilistik' and map_data.get('province_data') is None:
+        return "Narasi otomatis tidak tersedia untuk peta Probabilistik."
     if map_data.get('province_data') is None or map_data.get('kabupaten_data') is None:
         return "Narasi otomatis tidak tersedia: data provinsi/kabupaten tidak ditemukan."
 
-    # --- Pre-compute percentages ---
-    pct_data = _compute_all_percentages(
-        map_data['province_data'],
-        map_data['kabupaten_data']
-    )
-    pct_text = _format_percentages(pct_data)
+    status_update("Generating narration")
+    categories = _categories(map_data)
+    dominants = _dominants(map_data)
+    if not dominants:
+        return "Narasi otomatis tidak tersedia: tidak ada titik data di wilayah ini."
 
-    # --- Metrics for verifikasi ---
-    metrik_str = ""
-    if peta == 'Verifikasi':
-        metrik_str = (
-            f"Metrik: PC={map_data['accuracy']:.2%}, "
-            f"HSS={map_data['hss']:.2%}, "
-            f"PSS={map_data['pss']:.2%}"
-        )
+    lead = _lead_sentence(map_data, categories, dominants)
+    items = _kabupaten_items(map_data, categories, dominants)
+    kind = _kind(peta, map_data.get('tipe'))
+    verb = _VERBS.get(peta, 'terdapat')
 
-    # --- Build current input text ---
-    periode = _build_periode(map_data)
-    current_input = _build_input_text(nama_wilayah, periode, pct_text, metrik_str)
+    kab_text = ''
+    if items:
+        if use_llm:
+            kab_text = _llm_kabupaten_text(lead, items, kind, verb) or ''
+        kab_text = kab_text or _kabupaten_template(items, kind, verb)
 
-    # --- Resolve example ---
-    example_key = _resolve_example_key(peta, tipe, skala)
-    example = EXAMPLE_PAIRS.get(example_key)
-    if example is None:
-        example = EXAMPLE_PAIRS.get((peta, tipe, 'Bulanan'))
-    if example is None:
-        return f"Narasi otomatis tidak tersedia: tidak ada contoh untuk {peta}, {tipe}, {skala}."
+    status_update("Narration complete")
+    return ' '.join(p for p in (lead, kab_text, _metrics_sentence(map_data)) if p)
 
-    # --- Resolve category defs ---
-    cat_defs = _resolve_cat_defs(peta, tipe, skala)
-    cat_str = json.dumps(cat_defs, ensure_ascii=False) if isinstance(cat_defs, dict) else cat_defs
 
-    # --- Build prompt ---
-    prompt = (
-        "Kamu penulis narasi peta cuaca BMKG. "
-        "Tulis TEPAT 2-3 kalimat narasi berdasarkan DATA yang diberikan.\n\n"
-        "FORMAT WAJIB:\n"
-        "Kalimat 1: \"[Jenis Peta] [Tipe] [Periode] di Provinsi [Nama] didominasi "
-        "[kategori dominan] ([rentang nilai]) sebesar [X]%"
-        "[, sementara [Provinsi2] didominasi [kategori] ([rentang]) sebesar [Y]%].\"\n"
-        "Kalimat 2-3: Sebutkan kabupaten untuk kategori ekstrem/non-dominan TANPA persentase. "
-        "Gunakan kata kerja sesuai jenis peta: "
-        "'diprakirakan' (Prakiraan), 'tercatat' (Analisis), "
-        "'menunjukkan' (Verifikasi), 'pada kategori' (Normal/Bias/HTH).\n\n"
-        "LARANGAN:\n"
-        "1. DILARANG mengubah angka persentase — salin PERSIS dari data.\n"
-        "2. DILARANG menambah informasi yang tidak ada dalam data.\n"
-        "3. DILARANG menggunakan formatting (bold, italic, bullet, heading).\n"
-        "4. DILARANG menulis lebih dari 3 kalimat.\n"
-        "5. DILARANG menghilangkan kategori ekstrem yang ada di data kabupaten.\n\n"
-        f"Definisi kategori: {cat_str}\n\n"
-        f"=== CONTOH ===\nInput:\n{example['input']}\n\nOutput:\n{example['output']}\n=== AKHIR CONTOH ===\n\n"
-        f"=== DATA BARU ===\nInput:\n{current_input}\n\nOutput:"
-    )
-
-    # --- Generate with model fallback ---
-    def _generate(model):
-        return client.models.generate_content(
-            model=model,
-            contents=prompt
-        )
-    response = _call_with_model_fallback(_generate, ANALYSIS_MODELS)
-    if response is None:
-        status_update("All models exhausted for narration")
-        return "Narasi otomatis tidak tersedia: semua model API telah mencapai batas kuota."
-    status_update("AI narration complete")
-    return response.text
+def _format_grounding(map_data):
+    """Province percentages and kabupaten grouping as plain text for prompts."""
+    lines = ["=== PROVINSI ==="]
+    for name, counts in map_data['province_data'].items():
+        pcts = _counts_to_percentages(counts)
+        if pcts:
+            pct_str = ", ".join(f"{cat}: {val}%" for cat, val in pcts)
+            lines.append(f"{_nice(name)} (dominan: {pcts[0][0]}): {pct_str}")
+    groups = group_kabupaten(map_data['kabupaten_data'], _categories(map_data))
+    kab_lines = [f"{cat}: {', '.join(kabs)}" for cat, kabs in groups.items() if kabs]
+    if kab_lines:
+        lines.append("=== KABUPATEN PER KATEGORI ===")
+        lines.extend(kab_lines)
+    return "\n".join(lines)
 
 
 def get_visual_interpretation(map_data, analysis_text=None):
@@ -710,19 +527,7 @@ def get_visual_interpretation(map_data, analysis_text=None):
     Returns:
         str: Freeform analytical interpretation in Bahasa Indonesia.
     """
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError:
-        import subprocess
-        status_update("Installing google-genai...")
-        subprocess.check_call(['pip', 'install', 'google-genai', '-q'])
-        from google import genai
-        from google.genai import types
-    api_key = cfg.gemini_api_key
-    if not api_key:
-        raise ValueError("Gemini API key not configured.")
-    client = genai.Client(api_key=api_key)
+    _, types, client = _gemini_client()
 
     # --- Guard: missing image ---
     if map_data.get('image') is None:
@@ -739,14 +544,10 @@ def get_visual_interpretation(map_data, analysis_text=None):
     # Build grounding data from count_points to reduce hallucination
     grounding = ""
     if map_data.get('province_data') and map_data.get('kabupaten_data'):
-        pct_data = _compute_all_percentages(
-            map_data['province_data'],
-            map_data['kabupaten_data']
-        )
         grounding = (
             "\n\nBerikut data statistik aktual sebagai referensi (GUNAKAN angka ini, "
             "JANGAN mengarang angka sendiri):\n"
-            + _format_percentages(pct_data)
+            + _format_grounding(map_data)
         )
 
     # Include prior analysis text so Gemini avoids repeating it
@@ -791,7 +592,7 @@ def get_visual_interpretation(map_data, analysis_text=None):
         status_update("All models exhausted for visual interpretation")
         return "Interpretasi visual tidak tersedia: semua model API telah mencapai batas kuota."
     status_update("Visual interpretation complete")
-    return response.text
+    return _clean_llm_text(response.text)
 
 
 def get_full_narration(map_data):
@@ -814,7 +615,8 @@ def build_table_data(map_data):
     """Build table data for the Word document report.
 
     For standard maps (CH, SH, Verifikasi, etc.): produces a KRITERIA vs DAERAH
-    table where each row is a category and its associated kabupaten list.
+    table where each row is a category (with its range) and the kabupaten
+    listed under it by group_kabupaten — the same grouping the narration uses.
 
     For HTH maps: produces a station-level table with Provinsi, Kabupaten,
     optional Kecamatan/Pos, and the HTH classification name.
@@ -825,8 +627,8 @@ def build_table_data(map_data):
         map_data: dict returned by overlay_image().
 
     Returns:
-        dict with 'columns' (list[str]) and 'rows' (list[list[str]]),
-        or None if no table should be generated.
+        dict with 'columns' (list[str]), 'rows' (list[list[str]]) and
+        optionally 'merge_cols' (int), or None if no table should be generated.
     """
     peta = map_data.get('peta')
 
@@ -835,8 +637,7 @@ def build_table_data(map_data):
         return None
 
     # Skip if wilayah is kabupaten-level (no meaningful sub-breakdown)
-    nama_wilayah = map_data.get('nama_wilayah', '')
-    if 'Provinsi' not in nama_wilayah:
+    if not _per_province(map_data):
         return None
 
     if peta == 'HTH':
@@ -848,66 +649,33 @@ def _kriteria_column_name(peta, tipe):
     """Determine the KRITERIA column header based on map/data type."""
     if peta == 'Verifikasi':
         return 'Verifikasi'
-    if tipe == 'Curah Hujan':
-        return 'Curah Hujan (mm)'
-    if tipe == 'Sifat Hujan':
-        return 'Sifat Hujan (%)'
+    if peta == 'Bias':
+        return 'Bias Curah Hujan'
     return tipe or 'Kriteria'
-
-
-_CLOSE_CATEGORY_THRESHOLD = 10.0  # percentage-point gap
 
 
 def _build_kriteria_table(map_data):
     """Build KRITERIA vs DAERAH table for standard (non-HTH) maps.
 
-    Each kabupaten is assigned to its *dominant* category (highest percentage).
-    If another category is within ``_CLOSE_CATEGORY_THRESHOLD`` percentage
-    points of the dominant one, the kabupaten is listed under that category as
-    well so that near-ties are visible in the table.
-
-    Rows follow the original category order from count_points so that the table
-    reads from low → high severity.
+    Rows follow the category scheme order (low → high); a category with no
+    kabupaten shows '-'.
     """
     kabupaten_data = map_data.get('kabupaten_data')
     if not kabupaten_data:
         return None
 
-    peta = map_data.get('peta')
-    tipe = map_data.get('tipe')
-    col_name = _kriteria_column_name(peta, tipe)
-
-    # Classify each kabupaten — dominant + any close runner-up categories
-    category_to_kabs = {}
-    for kab_name, counts in kabupaten_data.items():
-        total = counts.get('total', 0)
-        if total == 0:
-            continue
-        pcts = [
-            (cat, cnt / total * 100)
-            for cat, cnt in counts.items()
-            if cat != 'total'
-        ]
-        pcts.sort(key=lambda x: x[1], reverse=True)
-        dominant_pct = pcts[0][1]
-        for cat, pct in pcts:
-            if pct > 0 and (dominant_pct - pct) <= _CLOSE_CATEGORY_THRESHOLD:
-                category_to_kabs.setdefault(cat, []).append(kab_name)
-
-    # Preserve original category order from the first kabupaten's count dict
-    first_counts = next(iter(kabupaten_data.values()))
-    cat_order = [k for k in first_counts if k != 'total']
-
-    if not cat_order:
+    categories = _categories(map_data)
+    if not categories:
         return None
+    groups = group_kabupaten(kabupaten_data, categories)
 
     rows = []
-    for cat in cat_order:
-        kabs = category_to_kabs.get(cat)
-        rows.append([cat, ', '.join(sorted(kabs)) if kabs else '-'])
+    for label, rng, _ in categories:
+        kabs = groups.get(label)
+        rows.append([f"{label} ({rng})" if rng else label, ', '.join(kabs) if kabs else '-'])
 
     return {
-        'columns': [col_name, 'Daerah'],
+        'columns': [_kriteria_column_name(map_data.get('peta'), map_data.get('tipe')), 'Daerah'],
         'rows': rows,
     }
 
