@@ -465,6 +465,9 @@ def count_points(data, value, levels):
         edges, categories = scheme
         labels = [c[0] for c in categories]
         idx = np.digitize(arr, edges, right=False)
+        if scheme is CATEGORY_SCHEMES['SPI']:
+            # SPI dry classes include their upper bound (-2,0 is Sangat Kering)
+            idx = np.where(arr < 0, np.digitize(arr, edges, right=True), idx)
         counts_arr = np.bincount(idx, minlength=len(labels))
     else:
         bins = list(levels) + [np.inf]

@@ -387,9 +387,10 @@ def _clean_llm_text(text):
 
 
 def _valid_kabupaten_text(text, items):
-    """Reject LLM output with percentages, runaway length, or a missing kabupaten.
+    """Reject LLM output with percentages, runaway length, or a missing kabupaten or category.
 
-    Category ranges such as '(<85%)' are allowed; any other '%' is not.
+    Category ranges such as '(<85%)' are allowed; any other '%' is not. Which
+    kabupaten falls under which category is not checked.
     """
     if not text or len(text) > 1500:
         return False
@@ -400,7 +401,8 @@ def _valid_kabupaten_text(text, items):
     if '%' in stripped:
         return False
     low = text.lower()
-    return all(kab.lower() in low for _, _, kabs in items for kab in kabs)
+    return (all(kab.lower() in low for _, _, kabs in items for kab in kabs)
+            and all(label.lower() in low and rng in text for label, rng, _ in items))
 
 
 _KAB_EXAMPLE = (

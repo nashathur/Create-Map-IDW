@@ -48,6 +48,14 @@ def test_count_points_bias_counts_negatives(set_cfg):
     assert c['Negatif Tinggi'] == 1 and c['Positif Tinggi'] == 1
 
 
+def test_count_points_spi_boundaries_match_labels(set_cfg):
+    # Dry classes include the upper bound (<=-2,0), wet ones the lower (>=2,0)
+    set_cfg('Analisis', 'SPI', 'Bulanan')
+    c = count_points(pd.DataFrame({'SPI': [-2.0, -1.5, -1.0, 0, 1.0, 1.5, 2.0]}), 'SPI', levels=None)
+    assert c == {'Sangat Kering': 1, 'Kering': 1, 'Agak Kering': 1, 'Normal': 1,
+                 'Agak Basah': 1, 'Basah': 1, 'Sangat Basah': 1, 'total': 7}
+
+
 # ---- grouping, narration, table -------------------------------------------
 
 def _map_data():
@@ -115,6 +123,7 @@ class _FakeClient:
      "sedangkan Rendah (0-50 mm/das) di Kab. Sorong.**", True),
     ("Curah hujan Tinggi diprakirakan terjadi di Kab. Manokwari.", False),   # drops Sorong
     ("Tinggi 40% di Manokwari dan Sorong.", False),                          # percentage
+    ("Manokwari dan Sorong.", False),                                        # no categories
     (None, False),
 ])
 def test_llm_output_checked(monkeypatch, llm_text, expect_llm):

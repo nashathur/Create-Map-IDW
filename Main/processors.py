@@ -42,7 +42,7 @@ def load_hth():
     status_update(f"Loading HTH file: {filepath}")
     ext = os.path.splitext(filepath)[1].lower()
     if ext == '.csv':
-        df = pd.read_csv(filepath)
+        df = pd.read_csv(filepath, sep=None, engine='python')   # HTH exports often use ';'
     elif ext in ('.xlsx', '.xls'):
         df = pd.read_excel(filepath)
     else:

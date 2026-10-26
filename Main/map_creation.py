@@ -508,7 +508,10 @@ def create_scatter_map(df, value, jenis, colors, info):
                 edgecolors='black', linewidths=0.5, zorder=5
             )
 
-    joined = gpd.sjoin(clipped_gdf, ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
+    # Region columns already in the input (e.g. a re-uploaded CSV export) would
+    # get _left/_right suffixes; the basemap's are the ones to group by.
+    joined = gpd.sjoin(clipped_gdf.drop(columns=['PROVINSI', 'KABUPATEN'], errors='ignore'),
+                       ctx['shp_main'][['PROVINSI', 'KABUPATEN', 'geometry']], predicate='within')
 
     levels = list(colors.keys())
     province_counts = {p: count_points(g, value, levels) for p, g in joined.groupby('PROVINSI')}
