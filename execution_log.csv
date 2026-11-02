@@ -1311,3 +1311,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-11-01T06:30:00.492321,Prakiraan,Sifat Hujan,Dasarian,"Papua Barat Daya, Papua Barat",2026,11,3,2026,10,3,True,False,plot_20261101_062940_PSHdas_2026.11.das3_ver_2026.10.3.png,26.63
 2026-11-02T00:43:52.365642,Verifikasi,Curah Hujan,Bulanan,"Papua Barat Daya, Papua Barat",2026,10,1,2026,10,3,True,False,plot_20261102_004327_VERqual_2026.10_ver_2026.10.png,41.33
 2026-11-02T00:55:12.808910,Verifikasi,Curah Hujan,Bulanan,"Papua Barat Daya, Papua Barat",2026,10,1,2026,10,3,True,False,plot_20261102_005444_VERqual_2026.10_ver_2026.10.png,40.63
+2026-11-02T01:00:48.674788,Verifikasi,Curah Hujan,Bulanan,"Papua Barat Daya, Papua Barat",2026,10,1,2026,10,3,True,False,plot_20261102_010023_VERqual_2026.10_ver_2026.10.png,40.76
