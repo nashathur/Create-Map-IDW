@@ -1371,3 +1371,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-11-16T01:30:10.377789,Analisis,SPI,Bulanan,"Papua Barat, Papua Barat Daya",2026,10,1,2026,10,1,False,False,peta_20261116_013009_SPI_2026.10.png,32.66
 2026-11-16T01:31:52.730243,Analisis,SPI,Bulanan,Papua Barat,2026,10,1,2026,10,1,False,False,peta_20261116_013152_SPI_2026.10.png,21.32
 2026-11-16T01:33:42.128564,Analisis,SPI,Bulanan,Papua Barat Daya,2026,10,1,2026,10,1,False,False,peta_20261116_013341_SPI_2026.10.png,20.76
+2026-11-17T23:09:33.130201,Prakiraan,Curah Hujan,Bulanan,Papua Barat,2026,12,1,2026,11,1,False,False,peta_20261117_230932_PCH_2026.12_ver_2026.11.png,23.28
