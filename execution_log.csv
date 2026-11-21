@@ -1410,3 +1410,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-11-20T11:19:07.042939,Analisis,Sifat Hujan,Bulanan,Papua Barat,2026,10,1,2026,10,1,True,False,plot_20261120_111859_ASH_2026.10.png,12.11
 2026-11-20T12:27:16.086945,Analisis,Sifat Hujan,Bulanan,Papua Barat Daya,2026,10,1,2026,10,1,True,False,plot_20261120_122705_ASH_2026.10.png,14.45
 2026-11-21T00:51:00.052277,HTH,Curah Hujan,Dasarian,"Papua Barat Daya, Papua Barat",2026,11,2,2026,11,2,False,False,peta_20261121_005059_HTH_2026.11.png,20.63
+2026-11-21T00:56:43.547601,HTH,Curah Hujan,Dasarian,"Papua Barat Daya, Papua Barat",2026,11,2,2026,11,2,True,False,plot_20261121_005636_HTH_2026.11.png,11.96
