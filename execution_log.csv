@@ -1429,3 +1429,4 @@ timestamp,jenis_peta,tipe_peta,skala_peta,wilayah,year,month,dasarian,year_ver,m
 2026-11-28T00:35:17.569995,Analisis,Curah Hujan,Bulanan,Fak fak,2026,9,1,2026,11,2,False,False,peta_20261128_003517_ACH_2026.09.png,5.1
 2026-11-28T00:38:21.007468,Analisis,Curah Hujan,Bulanan,Fak fak,2026,10,1,2026,11,2,False,False,peta_20261128_003820_ACH_2026.10.png,5.67
 2026-11-28T00:41:26.007243,Prakiraan,Curah Hujan,Bulanan,Fak fak,2026,12,1,2026,11,2,False,False,peta_20261128_004125_PCH_2026.12_ver_2026.11.png,4.42
+2026-11-28T00:43:07.996391,Analisis,Curah Hujan,Dasarian,Fak fak,2026,11,1,2026,11,2,False,False,peta_20261128_004307_ACHdas_2026.11.png,5.59
